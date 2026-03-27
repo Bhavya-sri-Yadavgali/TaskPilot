@@ -1,0 +1,84 @@
+import React from "react";
+import { cn } from "./utils";
+
+function Card({ className, ...props }) {
+  return (
+    <div
+      className={cn(
+        "bg-white text-gray-900 flex flex-col gap-6 rounded-xl border shadow-sm",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function CardHeader({ className, ...props }) {
+  return (
+    <div
+      className={cn(
+        "grid auto-rows-min gap-1.5 px-6 pt-6",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function CardTitle({ className, ...props }) {
+  return (
+    <h4
+      className={cn("text-lg font-semibold leading-none", className)}
+      {...props}
+    />
+  );
+}
+
+function CardDescription({ className, ...props }) {
+  return (
+    <p
+      className={cn("text-gray-500 text-sm", className)}
+      {...props}
+    />
+  );
+}
+
+function CardAction({ className, ...props }) {
+  return (
+    <div
+      className={cn(
+        "self-start justify-self-end",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function CardContent({ className, ...props }) {
+  return (
+    <div
+      className={cn("px-6 pb-6", className)}
+      {...props}
+    />
+  );
+}
+
+function CardFooter({ className, ...props }) {
+  return (
+    <div
+      className={cn("flex items-center px-6 pb-6", className)}
+      {...props}
+    />
+  );
+}
+
+export {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardAction,
+  CardDescription,
+  CardContent,
+};

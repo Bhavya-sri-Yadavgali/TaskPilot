@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:5000/api"
+  baseURL: "https://learnmate-o40t.onrender.com"
 });
 
 // Intercept all requests to cleanly append the Bearer Token if logged in

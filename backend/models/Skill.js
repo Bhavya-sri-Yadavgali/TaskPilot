@@ -26,7 +26,14 @@ const skillSchema = new mongoose.Schema({
     type: String,
     default: "Programming"
   },
-  weeklyTargetedHours: Number,
+  weeklyTargetedHours: {
+    type: Number,
+    default: 5
+  },
+  totalMasteryHours: {
+    type: Number,
+    default: 100
+  },
 
   createdAt: {
     type: Date,

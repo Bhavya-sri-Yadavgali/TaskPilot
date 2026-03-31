@@ -68,10 +68,23 @@ router.put("/:id", auth, async (req, res) => {
 
 router.delete("/:id", auth, async (req, res) => {
   try {
-    const deleted = await Skill.findOneAndDelete({ _id: req.params.id, user_id: req.user.userId });
-    if (!deleted) return res.status(404).json({ message: "Skill not found or unauthorized" });
-    res.json({ message: "Skill deleted" });
+    const skillId = req.params.id;
+    const userId = req.user.userId;
+
+    // 1. Delete the Skill document
+    const deletedSkill = await Skill.findOneAndDelete({ _id: skillId, user_id: userId });
+    if (!deletedSkill) return res.status(404).json({ message: "Skill not found or unauthorized" });
+
+    // 2. Delete the associated Progress document
+    await Progress.findOneAndDelete({ skill_id: skillId, user_id: userId });
+
+    // 3. Nullify skill_id in any Tasks associated with this skill (don't delete tasks)
+    const Task = require("../models/Task");
+    await Task.updateMany({ skill_id: skillId, user_id: userId }, { $set: { skill_id: null } });
+
+    res.json({ message: "Skill and associated progress deleted" });
   } catch(err) {
+    console.error("Skill deletion sync error:", err);
     res.status(500).json({ error: err.message });
   }
 });

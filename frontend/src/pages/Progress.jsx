@@ -41,6 +41,7 @@ export default function Progress() {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [user, setUser] = useState(null);
   
   // Week Selection State
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -49,12 +50,14 @@ export default function Progress() {
     const fetchAnalyticsData = async () => {
       const token = localStorage.getItem("token");
       try {
-        const [taskRes, skillRes] = await Promise.all([
+        const [taskRes, skillRes, userRes] = await Promise.all([
           API.get("/tasks", { headers: { Authorization: `Bearer ${token}` } }),
-          API.get("/skills", { headers: { Authorization: `Bearer ${token}` } })
+          API.get("/skills", { headers: { Authorization: `Bearer ${token}` } }),
+          API.get("/auth/profile", { headers: { Authorization: `Bearer ${token}` } })
         ]);
         setTasks(taskRes.data);
         setSkills(skillRes.data);
+        setUser(userRes.data);
       } catch(err) {
         console.error(err);
         setError("Your session may have expired. Please log in again.");
@@ -238,8 +241,10 @@ export default function Progress() {
   const weekStartStr = format(targetWeekStart, "MMM d");
   const weekEndStr = format(endOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d, yyyy");
 
-  const weeklyGoal = 20; 
+  const weeklyGoal = user ? (user.dailyAvailableHours * 7) : 20; 
   const percentComplete = Math.min(Math.round((weeklyStudyHours / weeklyGoal) * 100), 100);
+  const realPercent = Math.round((weeklyStudyHours / weeklyGoal) * 100);
+  const isOverachieved = weeklyStudyHours > weeklyGoal;
   const remainingHours = Math.max(weeklyGoal - weeklyStudyHours, 0);
 
   // SVG Circular Math
@@ -424,13 +429,25 @@ export default function Progress() {
                   strokeDasharray={circleCircumference}
                   strokeDashoffset={strokeDashoffset}
                   strokeLinecap="round"
-                  className="text-blue-500 transition-all duration-1000 ease-in-out"
+                  className={`${isOverachieved ? "text-transparent" : "text-blue-500"} transition-all duration-1000 ease-in-out`}
+                  style={isOverachieved ? { stroke: "url(#overachieveGradient)" } : {}}
                 />
+                {isOverachieved && (
+                  <defs>
+                    <linearGradient id="overachieveGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#F59E0B" /> {/* Amber 500 */}
+                      <stop offset="50%" stopColor="#D946EF" /> {/* Fuchsia 500 */}
+                      <stop offset="100%" stopColor="#8B5CF6" /> {/* Violet 500 */}
+                    </linearGradient>
+                  </defs>
+                )}
               </svg>
               {/* Center Text */}
               <div className="absolute flex flex-col items-center justify-center text-center">
-                <span className="text-4xl font-extrabold text-blue-600 leading-tight">{percentComplete}%</span>
-                <span className="text-xs font-bold text-slate-400">Complete</span>
+                <span className={`text-4xl font-extrabold leading-tight ${isOverachieved ? "bg-gradient-to-br from-amber-500 via-fuchsia-500 to-violet-500 bg-clip-text text-transparent" : "text-blue-600"}`}>
+                  {isOverachieved ? realPercent : percentComplete}%
+                </span>
+                <span className="text-xs font-bold text-slate-400">{isOverachieved ? "Exceeded!" : "Complete"}</span>
               </div>
             </div>
 
@@ -438,20 +455,20 @@ export default function Progress() {
               <h3 className="text-lg font-extrabold text-slate-800">
                 {weeklyStudyHours.toFixed(1)}h <span className="text-slate-400 text-sm font-bold">/ {weeklyGoal}h</span>
               </h3>
-              <p className="text-xs font-medium text-slate-400">studied this week</p>
+              <p className="text-xs font-medium text-slate-400">{isOverachieved ? "Amazing performance!" : "studied this week"}</p>
             </div>
 
             <div className="flex items-center gap-6 text-xs font-bold text-slate-500 mb-6">
               <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div> Studied {weeklyStudyHours.toFixed(1)}h
+                <div className={`w-2.5 h-2.5 rounded-full ${isOverachieved ? "bg-amber-400" : "bg-blue-500"}`}></div> Studied {weeklyStudyHours.toFixed(1)}h
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-slate-200"></div> Remaining {remainingHours.toFixed(1)}h
+                <div className="w-2.5 h-2.5 rounded-full bg-slate-200"></div> {isOverachieved ? `Surplus ${(weeklyStudyHours - weeklyGoal).toFixed(1)}h` : `Remaining ${remainingHours.toFixed(1)}h`}
               </div>
             </div>
 
-            <div className="bg-blue-50 text-blue-600 text-xs font-bold px-4 py-2 rounded-lg w-full text-center">
-              {percentComplete >= 100 ? "💪 Amazing! Goal crushed!" : percentComplete >= 50 ? "🔥 Great work! You're over halfway there!" : "🚀 Keep pushing! You can do it!"}
+            <div className={`text-xs font-bold px-4 py-2 rounded-lg w-full text-center ${isOverachieved ? "bg-gradient-to-r from-amber-100 via-purple-100 to-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm" : "bg-blue-50 text-blue-600"}`}>
+              {isOverachieved ? "🏆 Spectacular! You're an overachiever!" : percentComplete >= 100 ? "💪 Amazing! Goal crushed!" : percentComplete >= 50 ? "🔥 Great work! You're over halfway there!" : "🚀 Keep pushing! You can do it!"}
             </div>
           </Card>
 

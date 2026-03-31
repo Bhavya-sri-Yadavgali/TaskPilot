@@ -11,7 +11,6 @@ const PREDEFINED_CATEGORIES = [
   { id: "Design", label: "Design", color: "rose" },
   { id: "Science", label: "Science", color: "cyan" }
 ];
-
 export default function Skills() {
   const [skills, setSkills] = useState([]);
   const [progress, setProgress] = useState([]);
@@ -20,42 +19,52 @@ export default function Skills() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState(null);
+  const [isAdding, setIsAdding] = useState(false);
 
-  // Form State
+  const handleDeleteSkill = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this skill?")) return;
+    try {
+      const token = localStorage.getItem("token");
+      await API.delete(`/skills/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      fetchDataEnhanced();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const [formData, setFormData] = useState({
     skill_name: "",
     category: "",
     customCategory: "",
     target_level: "beginner",
     priority: "medium",
-    weeklyTargetedHours: 5
+    weeklyTargetedHours: 5,
+    totalMasteryHours: 100
   });
-  const [isAdding, setIsAdding] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchDataEnhanced = async () => {
     const token = localStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
 
     try {
       const [skillRes, progressRes] = await Promise.all([
         API.get("/skills", { headers }),
-        API.get("/progress/raw", { headers })
+        API.get("/progress", { headers })
       ]);
       setSkills(skillRes.data);
-      setProgress(progressRes.data);
+      setProgress(progressRes.data.skills || []);
     } catch (err) {
       console.error(err);
       setError("Your session may have expired (401). Please log in again.");
     }
   };
 
-  const getProgress = (skillId) => {
-    const p = progress.find(p => p.skill_id === skillId);
-    return p ? p.completed_hours : 0;
+  useEffect(() => {
+    fetchDataEnhanced();
+  }, []);
+
+  const getSkillMetrics = (skillId) => {
+    return progress.find(p => p.id === skillId);
   };
 
   const openAddModal = () => {
@@ -65,7 +74,8 @@ export default function Skills() {
       customCategory: "",
       target_level: "beginner",
       priority: "medium",
-      weeklyTargetedHours: 5
+      weeklyTargetedHours: 5,
+      totalMasteryHours: 100
     });
     setEditingSkill(null);
     setIsModalOpen(true);
@@ -79,21 +89,11 @@ export default function Skills() {
       customCategory: isPredefined ? "" : skill.category,
       target_level: skill.target_level || "beginner",
       priority: skill.priority || "medium",
-      weeklyTargetedHours: skill.weeklyTargetedHours || 5
+      weeklyTargetedHours: skill.weeklyTargetedHours || 5,
+      totalMasteryHours: skill.totalMasteryHours || 100
     });
     setEditingSkill(skill);
     setIsModalOpen(true);
-  };
-
-  const handleDeleteSkill = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this skill?")) return;
-    try {
-      const token = localStorage.getItem("token");
-      await API.delete(`/skills/${id}`, { headers: { Authorization: `Bearer ${token}` } });
-      fetchData();
-    } catch (err) {
-      console.error(err);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -112,7 +112,8 @@ export default function Skills() {
         category: finalCategory,
         target_level: formData.target_level,
         priority: formData.priority,
-        weeklyTargetedHours: Number(formData.weeklyTargetedHours) || 5
+        weeklyTargetedHours: Number(formData.weeklyTargetedHours) || 5,
+        totalMasteryHours: Number(formData.totalMasteryHours) || 100
       };
 
       if (editingSkill) {
@@ -126,7 +127,7 @@ export default function Skills() {
       }
 
       setIsModalOpen(false);
-      await fetchData(); // Refresh list
+      await fetchDataEnhanced(); // Refresh list
     } catch (err) {
       console.error("Failed to save skill", err);
     } finally {
@@ -142,18 +143,35 @@ export default function Skills() {
   let masteredCount = 0;
 
   const skillsWithProgress = skills.map(skill => {
-    const hours = getProgress(skill._id);
-    const target = skill.weeklyTargetedHours || 5;
-    const percent = Math.min(Math.round((hours / target) * 100), 100);
+    const metrics = getSkillMetrics(skill._id);
+    const masteryPercent = metrics ? metrics.masteryProgress : 0;
+    const weeklyPercent = metrics ? metrics.weeklyProgress : 0;
+    const hoursSpent = metrics ? metrics.hoursSpent : 0;
+    const weeklyHours = metrics ? metrics.weeklyHours : 0;
 
-    totalPercent += percent;
-    if (percent >= 100) masteredCount++;
+    totalPercent += masteryPercent;
+    if (masteryPercent >= 100) masteredCount++;
 
-    // Assign color based on category
     const knownCat = PREDEFINED_CATEGORIES.find(c => c.id === skill.category);
     const colorTheme = knownCat ? knownCat.color : "slate";
 
-    return { ...skill, hours, percent, colorTheme, target };
+    // Motivation logic
+    const createdDate = new Date(skill.createdAt);
+    const now = new Date();
+    const diffTime = Math.abs(now - createdDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const motivationText = diffDays === 1 ? "Started today" : `Learning for ${diffDays} days`;
+
+    return { 
+      ...skill, 
+      masteryPercent, 
+      weeklyPercent, 
+      hoursSpent, 
+      weeklyHours,
+      colorTheme, 
+      motivationText,
+      formattedDate: createdDate.toLocaleDateString()
+    };
   });
 
   const avgProgress = totalSkills > 0 ? Math.round(totalPercent / totalSkills) : 0;
@@ -162,7 +180,7 @@ export default function Skills() {
     <div className="p-6 bg-[#F8FAFC] min-h-screen font-sans relative">
       <div className="max-w-5xl mx-auto space-y-8">
 
-        {/* Header Title */}
+        {/* ... Header Title (same as before) ... */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
           <div className="flex items-center gap-4">
             <div className="bg-indigo-500 p-2.5 rounded-xl shadow-inner text-white">
@@ -174,7 +192,7 @@ export default function Skills() {
               </h1>
               <p className="text-slate-500 font-medium mt-0.5">
                 {totalSkills > 0 
-                  ? "Master new capabilities and track your progress daily" 
+                  ? "Master new capabilities and track your journey to expertise" 
                   : "Track and master your learning journey effortlessly"}
               </p>
             </div>
@@ -201,7 +219,7 @@ export default function Skills() {
           <Card className="border-none shadow-sm rounded-2xl bg-white">
             <CardContent className="p-5 flex justify-between items-center h-full">
               <div>
-                <p className="text-xs font-bold text-slate-400 mb-1">Avg Progress</p>
+                <p className="text-xs font-bold text-slate-400 mb-1">Avg Mastery</p>
                 <h2 className="text-3xl font-extrabold text-purple-600">{avgProgress}%</h2>
               </div>
               <div className="p-3 bg-purple-50 text-purple-500 rounded-2xl">
@@ -225,17 +243,20 @@ export default function Skills() {
 
         {/* Your Skills Grid */}
         <div className="pt-2">
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-slate-800">Your Skills</h2>
-            <p className="text-slate-500 text-sm font-medium">
-              {totalSkills > 0 
-                ? "Monitor your progress across all learning areas" 
-                : "No skills added yet. Let's get started!"}
-            </p>
+          <div className="mb-6 flex justify-between items-end">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">Your Skills</h2>
+              <p className="text-slate-500 text-sm font-medium">
+                {totalSkills > 0 
+                  ? "Monitor your path to mastery across all areas" 
+                  : "No skills added yet. Let's get started!"}
+              </p>
+            </div>
           </div>
 
           {totalSkills === 0 ? (
             <Card className="border-2 border-dashed border-slate-200 shadow-none rounded-3xl bg-white/50 p-12 text-center">
+              {/* ... Empty state (same as before) ... */}
               <div className="max-w-sm mx-auto space-y-6">
                 <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-500">
                   <Award size={40} className="stroke-[2]" />
@@ -257,77 +278,78 @@ export default function Skills() {
           ) : (
             <div className="grid md:grid-cols-3 gap-6">
             {skillsWithProgress.map((skill) => {
-
-              // Safe static Tailwind class maps for Badges
               let bgBadge, textBadge;
               switch (skill.colorTheme) {
-                case 'blue':
-                  bgBadge = 'bg-blue-50'; textBadge = 'text-blue-600';
-                  break;
-                case 'fuchsia':
-                  bgBadge = 'bg-fuchsia-50'; textBadge = 'text-fuchsia-600';
-                  break;
-                case 'emerald':
-                  bgBadge = 'bg-emerald-50'; textBadge = 'text-emerald-600';
-                  break;
-                case 'rose':
-                  bgBadge = 'bg-rose-50'; textBadge = 'text-rose-600';
-                  break;
-                case 'cyan':
-                  bgBadge = 'bg-cyan-50'; textBadge = 'text-cyan-600';
-                  break;
-                default:
-                  bgBadge = 'bg-slate-50'; textBadge = 'text-slate-600';
-                  break;
+                case 'blue': bgBadge = 'bg-blue-50'; textBadge = 'text-blue-600'; break;
+                case 'fuchsia': bgBadge = 'bg-fuchsia-50'; textBadge = 'text-fuchsia-600'; break;
+                case 'emerald': bgBadge = 'bg-emerald-50'; textBadge = 'text-emerald-600'; break;
+                case 'rose': bgBadge = 'bg-rose-50'; textBadge = 'text-rose-600'; break;
+                case 'cyan': bgBadge = 'bg-cyan-50'; textBadge = 'text-cyan-600'; break;
+                default: bgBadge = 'bg-slate-50'; textBadge = 'text-slate-600'; break;
               }
 
-              // Progress Bar Color explicitly matches UI based on percentage score
               let bgBar = 'bg-amber-400';
-              if (skill.percent >= 80) bgBar = 'bg-emerald-500';
-              else if (skill.percent >= 50) bgBar = 'bg-blue-500';
+              if (skill.masteryPercent >= 80) bgBar = 'bg-emerald-500';
+              else if (skill.masteryPercent >= 50) bgBar = 'bg-blue-500';
 
               return (
                 <Card key={skill._id} className="border-none shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow group">
                   <CardContent className="p-6 relative">
-
-                    {/* Action Buttons (visible on hover) */}
                     <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
                       <button onClick={() => openEditModal(skill)} className="p-1.5 bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg"><Edit2 size={14} /></button>
                       <button onClick={() => handleDeleteSkill(skill._id)} className="p-1.5 bg-red-50 text-red-500 hover:text-red-700 rounded-lg"><Trash2 size={14} /></button>
                     </div>
 
-                    <div className="mb-4">
+                    <div className="flex justify-between items-start mb-4">
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${bgBadge} ${textBadge}`}>
                         {skill.category || 'Other'}
                       </span>
+                      <span className="text-[10px] font-bold text-slate-300">Added {skill.formattedDate}</span>
                     </div>
 
-                    <h3 className="font-bold text-slate-800 text-lg leading-tight mb-6 pr-12">
+                    <h3 className="font-bold text-slate-800 text-lg leading-tight mb-4 pr-12">
                       {skill.skill_name}
                     </h3>
 
-                    <div className="flex justify-between items-end mb-2">
-                      <span className="text-xs font-bold text-slate-400">Progress</span>
-                      <span className="text-sm font-extrabold text-slate-700">{skill.percent}%</span>
+                    {/* Mastery Progress */}
+                    <div className="space-y-2 mb-4">
+                      <div className="flex justify-between items-end">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Mastery Progress</span>
+                        <span className="text-sm font-extrabold text-slate-700">{skill.masteryPercent}%</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2.5 rounded-full">
+                        <div
+                          className={`h-2.5 rounded-full transition-all duration-1000 ${bgBar}`}
+                          style={{ width: `${skill.masteryPercent}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-semibold">{skill.hoursSpent}h of {skill.totalMasteryHours}h goal</p>
                     </div>
 
-                    <div className="w-full bg-slate-100 h-2 rounded-full mb-3">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-1000 ${bgBar}`}
-                        style={{ width: `${skill.percent}%` }}
-                      ></div>
+                    {/* Weekly Goal Progress */}
+                    <div className="pt-3 border-t border-slate-50">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Weekly Goal</span>
+                        <span className={`text-[11px] font-bold ${skill.weeklyPercent >= 100 ? 'text-emerald-500' : 'text-indigo-500'}`}>
+                          {skill.weeklyHours}h / {skill.weeklyTargetedHours}h
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-50 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all duration-700 ${skill.weeklyPercent >= 100 ? 'bg-emerald-400' : 'bg-indigo-400'}`}
+                          style={{ width: `${skill.weeklyPercent}%` }}
+                        ></div>
+                      </div>
                     </div>
 
-                    <p className="text-xs font-bold text-slate-500 flex items-center gap-1.5 mt-4">
-                      {skill.percent >= 100 ? (
-                        <><span className="text-emerald-500">🎉</span> Mastered!</>
-                      ) : skill.percent >= 50 ? (
-                        <><span className="text-blue-500">✨</span> Making great progress</>
-                      ) : (
-                        <><span className="text-orange-500">🚀</span> Keep going!</>
-                      )}
-                    </p>
-
+                    <div className="flex items-center justify-between mt-5 pt-1">
+                      <p className="text-[11px] font-bold text-indigo-500/80 italic">
+                        {skill.motivationText}
+                      </p>
+                      <p className="text-[11px] font-extrabold text-slate-400 flex items-center gap-1">
+                        {skill.masteryPercent >= 100 ? "🎉 DONE" : "🚀 ACTIVE"}
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -341,6 +363,7 @@ export default function Skills() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
           <Card className="w-full max-w-md bg-white shadow-xl rounded-2xl overflow-hidden border-none relative">
+            {/* Modal Header */}
             <div className="flex justify-between items-center p-5 border-b border-slate-100 bg-slate-50/50">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 {editingSkill ? <Edit2 size={18} className="text-indigo-500" /> : <Plus size={18} className="text-indigo-500" />}
@@ -350,6 +373,7 @@ export default function Skills() {
                 <X size={18} />
               </button>
             </div>
+            {/* Modal Content */}
             <CardContent className="p-6">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -359,7 +383,7 @@ export default function Skills() {
                     placeholder="e.g., Python Programming"
                     value={formData.skill_name}
                     onChange={(e) => setFormData({...formData, skill_name: e.target.value})}
-                    className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium placeholder:text-slate-400 text-slate-700"
+                    className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium text-slate-700"
                     required
                   />
                 </div>
@@ -370,7 +394,7 @@ export default function Skills() {
                     <select
                       value={formData.category}
                       onChange={(e) => setFormData({...formData, category: e.target.value})}
-                      className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium text-slate-600 appearance-none"
+                      className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium text-slate-600 cursor-pointer"
                       required
                     >
                       <option value="" disabled>Select category</option>
@@ -381,75 +405,66 @@ export default function Skills() {
                     </select>
                   </div>
                   
-                  {formData.category === "Custom" ? (
-                    <div className="animate-in fade-in slide-in-from-top-2">
-                      <label className="text-xs font-bold text-slate-500 mb-1.5 block">Custom Category</label>
-                      <input
-                        type="text"
-                        placeholder="Enter category"
-                        value={formData.customCategory}
-                        onChange={(e) => setFormData({...formData, customCategory: e.target.value})}
-                        className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium text-slate-700"
-                        required
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 mb-1.5 block">Target Level</label>
-                      <select
-                        value={formData.target_level}
-                        onChange={(e) => setFormData({...formData, target_level: e.target.value})}
-                        className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium text-slate-600 appearance-none"
-                      >
-                        <option value="beginner">Beginner</option>
-                        <option value="intermediate">Intermediate</option>
-                        <option value="advanced">Advanced</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {formData.category === "Custom" && (
-                    <div>
-                      <label className="text-xs font-bold text-slate-500 mb-1.5 block">Target Level</label>
-                      <select
-                        value={formData.target_level}
-                        onChange={(e) => setFormData({...formData, target_level: e.target.value})}
-                        className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium text-slate-600 appearance-none"
-                      >
-                        <option value="beginner">Beginner</option>
-                        <option value="intermediate">Intermediate</option>
-                        <option value="advanced">Advanced</option>
-                      </select>
-                    </div>
-                  )}
-                  
                   <div>
                     <label className="text-xs font-bold text-slate-500 mb-1.5 block">Priority</label>
                     <select
                       value={formData.priority}
                       onChange={(e) => setFormData({...formData, priority: e.target.value})}
-                      className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium text-slate-600 appearance-none"
+                      className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium text-slate-600 cursor-pointer"
                     >
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
                       <option value="high">High</option>
                     </select>
                   </div>
-                  
-                  <div className={formData.category === "Custom" ? "col-span-2" : ""}>
-                    <label className="text-xs font-bold text-slate-500 mb-1.5 block">Weekly Target (Hours)</label>
+                </div>
+
+                {formData.category === "Custom" && (
+                  <div className="animate-in fade-in slide-in-from-top-2">
+                    <label className="text-xs font-bold text-slate-500 mb-1.5 block">Custom Category</label>
                     <input
-                      type="number"
-                      min="1"
-                      max="168"
-                      placeholder="e.g., 5"
-                      value={formData.weeklyTargetedHours}
-                      onChange={(e) => setFormData({...formData, weeklyTargetedHours: e.target.value})}
+                      type="text"
+                      placeholder="Enter category"
+                      value={formData.customCategory}
+                      onChange={(e) => setFormData({...formData, customCategory: e.target.value})}
                       className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all font-medium text-slate-700"
                       required
                     />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="bg-blue-50/30 p-4 rounded-2xl border border-blue-50">
+                    <label className="text-xs font-extrabold text-blue-600 mb-2 block uppercase tracking-tight">Total Mastery Goal</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="500"
+                        value={formData.totalMasteryHours}
+                        onChange={(e) => setFormData({...formData, totalMasteryHours: e.target.value})}
+                        className="w-full bg-white border border-blue-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all font-bold text-slate-700"
+                        required
+                      />
+                      <span className="text-xs font-bold text-blue-400 uppercase">Hrs</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-indigo-50/30 p-4 rounded-2xl border border-indigo-50">
+                    <label className="text-xs font-extrabold text-indigo-600 mb-2 block uppercase tracking-tight">Weekly Target</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="168"
+                        placeholder="10"
+                        value={formData.weeklyTargetedHours}
+                        onChange={(e) => setFormData({...formData, weeklyTargetedHours: e.target.value})}
+                        className="w-full bg-white border border-indigo-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/50 transition-all font-bold text-slate-700"
+                        required
+                      />
+                      <span className="text-xs font-bold text-indigo-400 uppercase">Hrs</span>
+                    </div>
                   </div>
                 </div>
 

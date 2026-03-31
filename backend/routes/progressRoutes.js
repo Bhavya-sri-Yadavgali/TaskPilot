@@ -36,8 +36,11 @@ router.get("/", auth,async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    const progressData = await Progress.find({ user_id: userId })
+    let progressData = await Progress.find({ user_id: userId })
       .populate("skill_id");
+
+    // 🔥 Aggressive Filter: Filter out records where the skill was deleted or is missing details
+    progressData = progressData.filter(p => p.skill_id && p.skill_id.skill_name);
 
     if (!progressData.length) {
       return res.json({
@@ -83,19 +86,29 @@ router.get("/", auth,async (req, res) => {
       }))
       .sort((a, b) => weekOrder.indexOf(a.week) - weekOrder.indexOf(b.week));
 
-    // 🔹 Skills Data (FIXED)
-    const skills = progressData.map(p => ({
-      name: p.skill_id?.skill_name || "Unknown",
-      category: p.skill_id?.category || "Other",
-      colorTheme: p.skill_id?.colorTheme || "blue",
-      hoursSpent: p.completed_hours,
-      progress: Math.min(
-        Math.round(
-          (p.completed_hours / (p.skill_id?.weeklyTargetedHours || 1)) * 100
-        ),
-        100
-      )
-    }));
+    // 🔹 Skills Data (ENHANCED)
+    const skills = progressData.map(p => {
+      const weeklyHours = p.weeklyBreakDown.reduce((sum, w) => sum + (w.hours || 0), 0);
+      const totalMastery = p.skill_id?.totalMasteryHours || 100;
+      const weeklyTarget = p.skill_id?.weeklyTargetedHours || 5;
+
+      return {
+        id: p.skill_id?._id,
+        name: p.skill_id?.skill_name || "Unknown",
+        category: p.skill_id?.category || "Other",
+        colorTheme: p.skill_id?.colorTheme || "blue",
+        priority: p.skill_id?.priority || "medium",
+        createdAt: p.skill_id?.createdAt,
+        hoursSpent: p.completed_hours,
+        weeklyHours: weeklyHours,
+        totalMasteryHours: totalMastery,
+        weeklyTargetedHours: weeklyTarget,
+        // Existing "progress" for backward compatibility (mapped to mastery now)
+        progress: Math.min(Math.round((p.completed_hours / totalMastery) * 100), 100),
+        masteryProgress: Math.min(Math.round((p.completed_hours / totalMastery) * 100), 100),
+        weeklyProgress: Math.min(Math.round((weeklyHours / weeklyTarget) * 100), 100)
+      };
+    });
 
     // 🔹 Most Practiced
     const mostPracticedObj = progressData.reduce((max, curr) =>
@@ -149,7 +162,10 @@ router.get("/raw", auth, async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    const progress = await Progress.find({ user_id: userId });
+    let progress = await Progress.find({ user_id: userId }).populate("skill_id");
+    
+    // 🔥 Filter orphans
+    progress = progress.filter(p => p.skill_id && p.skill_id.skill_name);
 
     res.json(progress);
 

@@ -7,6 +7,7 @@ const sendEmail = require("../utils/sendEmail");
 
 
 const User = require("../models/User")
+const auth = require("../middleware/auth");
 
 // Register user
 router.post("/register", async (req, res) => {
@@ -168,7 +169,19 @@ router.get("/verify/:token", async (req, res) => {
   }
 });
 
-
+// ✅ GET USER PROFILE
+router.get("/profile", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select("-password -verificationToken -verificationExpires");
+    if (!user) {
+      return res.status(400).json({ message: "User not found" });
+    }
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error", err: err.message });
+  }
+});
 
 
 module.exports = router

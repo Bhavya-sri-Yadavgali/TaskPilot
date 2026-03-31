@@ -403,9 +403,6 @@ export default function Dashboard() {
                      </div>
                   ))}
                 </div>
-                <p className="text-center text-xs text-slate-400 font-medium mt-6">
-                  Study at least 30 minutes daily to maintain your streak.
-                </p>
               </CardContent>
             </Card>
           </div>
@@ -417,7 +414,7 @@ export default function Dashboard() {
             <div className="flex justify-between items-center bg-white p-3 px-5 rounded-2xl shadow-sm border border-slate-100">
               <h2 className="text-lg font-bold flex items-center gap-2 text-indigo-500">
                 <div className="p-1.5 bg-indigo-50 rounded-md text-indigo-600"><Award size={16} /></div>
-                Skill Progress
+                Target Mastery
               </h2>
               <button 
                 onClick={() => navigate('/skills')}
@@ -427,41 +424,70 @@ export default function Dashboard() {
             </div>
 
             <div className="grid md:grid-cols-2 gap-5">
-              {skills.map((skill, index) => {
-                const skillProgressObj = progress.skills?.find(s => s.name === skill.skill_name);
-                const skillProgress = skillProgressObj ? skillProgressObj.progress : 0;
-                const isEven = index % 2 === 0;
-                
-                return (
-                <Card key={skill._id} className="border border-slate-100 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-start mb-6">
-                      <div>
-                        <h3 className="font-bold text-slate-800 text-lg">{skill.skill_name}</h3>
-                        <p className="text-xs text-slate-400 mt-1 font-medium">{skill.category || 'Programming'} • {skillProgressObj?.hoursSpent || 0}h practiced</p>
-                      </div>
-                      <h2 className={`text-2xl font-extrabold ${isEven ? 'text-blue-600' : 'text-amber-500'}`}>{skillProgress}%</h2>
-                    </div>
+              {progress.skills
+                ?.sort((a, b) => {
+                  const pMap = { high: 0, medium: 1, low: 2 };
+                  if (pMap[a.priority] !== pMap[b.priority]) return pMap[a.priority] - pMap[b.priority];
+                  return b.masteryProgress - a.masteryProgress;
+                })
+                .slice(0, 4)
+                .map((skill, index) => {
+                  const isEven = index % 2 === 0;
+                  const masteryPercent = skill.masteryProgress || 0;
+                  const weeklyPercent = skill.weeklyProgress || 0;
+                  
+                  // Motivation logic
+                  const createdDate = new Date(skill.createdAt);
+                  const now = new Date(); // 🔥 Fixed: Re-added missing 'now' variable
+                  const isValidDate = !isNaN(createdDate.getTime());
+                  const diffDays = isValidDate ? Math.ceil(Math.abs(now - createdDate) / (1000 * 60 * 60 * 24)) : 0;
+                  const motivationText = (diffDays <= 1 || !isValidDate) ? "Started today" : `Learning for ${diffDays} days`;
 
-                    <div className="w-full bg-slate-100 h-2.5 rounded-full mb-3 relative overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-1000 ${isEven ? 'bg-blue-500' : 'bg-amber-400'}`}
-                        style={{ width: `${skillProgress}%` }}
-                      />
-                      {/* Simulated milestones */}
-                      <div className="absolute top-0 left-1/3 w-1 h-full bg-white/40"></div>
-                      <div className="absolute top-0 left-2/3 w-1 h-full bg-white/40"></div>
-                    </div>
-                    
-                    <p className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
-                      <span className={isEven ? "text-emerald-500" : "text-amber-500"}>
-                        {isEven ? "✨" : "🔥"}
-                      </span>
-                      {isEven ? "Great progress!" : "Keep it up!"}
-                    </p>
-                  </CardContent>
-                </Card>
-              )})}
+                  return (
+                    <Card key={skill.id || index} className="border border-slate-100 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow group">
+                      <CardContent className="p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-600 transition-colors">{skill.name}</h3>
+                            <p className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">{skill.category || 'Programming'} • {skill.hoursSpent || 0}h total</p>
+                          </div>
+                          <div className="text-right">
+                            <h2 className={`text-2xl font-black ${isEven ? 'text-blue-600' : 'text-indigo-500'}`}>{masteryPercent}%</h2>
+                            <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">Mastery</span>
+                          </div>
+                        </div>
+
+                        {/* Mastery Progress */}
+                        <div className="w-full bg-slate-100 h-2.5 rounded-full mb-5 relative overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-1000 ${isEven ? 'bg-blue-500' : 'bg-indigo-500'}`}
+                            style={{ width: `${masteryPercent}%` }}
+                          />
+                          <div className="absolute top-0 left-1/2 w-px h-full bg-white/20"></div>
+                        </div>
+                        
+                        {/* Weekly Micro-bar */}
+                        <div className="flex items-center gap-3 bg-slate-50/50 p-3 rounded-xl border border-slate-100/50">
+                          <div className="flex-1">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">Weekly Goal</span>
+                              <span className="text-[10px] font-bold text-slate-600">{skill.weeklyHours}h / {skill.weeklyTargetedHours}h</span>
+                            </div>
+                            <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full ${weeklyPercent >= 100 ? 'bg-emerald-400' : 'bg-amber-400 shadow-sm'}`}
+                                style={{ width: `${weeklyPercent}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                          <div className="text-[11px] font-bold text-indigo-500/80 italic shrink-0">
+                            {motivationText}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
             </div>
           </div>
         )}

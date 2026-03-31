@@ -595,7 +595,7 @@ export default function StudyPlan() {
                       <div className="col-span-3 md:col-span-2 hidden md:block">
                         {task.skill_id ? (
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${bgBadge} ${textBadge}`}>
-                            {task.skill_id.category || 'Skill'}
+                            {task.skill_id.skill_name || 'Skill'}
                           </span>
                         ) : (
                           <span className="text-[10px] font-bold text-slate-300 px-2 border border-slate-100 rounded-md">General</span>

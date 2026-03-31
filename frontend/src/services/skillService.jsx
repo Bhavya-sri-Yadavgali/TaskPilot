@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API = "http://localhost:5000/api/skills";
+const API = "https://learnmate-o40t.onrender.com/api/skills";
 
 export const getSkills = async () => {
   const res = await axios.get(API);

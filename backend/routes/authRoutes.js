@@ -35,7 +35,9 @@ router.post("/register", async (req, res) => {
     }
 
     // 🔍 Check existing user
+    console.log("DEBUG: Checking if user exists...");
     const existingUser = await User.findOne({ email });
+    console.log("DEBUG: User check complete. Found:", !!existingUser);
 
     if (existingUser) {
       return res.status(400).json({
@@ -62,7 +64,9 @@ router.post("/register", async (req, res) => {
       verificationExpires
     });
 
+    console.log("DEBUG: Saving new user to database...");
     await user.save();
+    console.log("DEBUG: User saved successfully.");
 
 
     const verificationUrl = `${process.env.APP_URL}/verify/${verificationToken}`;
@@ -74,11 +78,13 @@ router.post("/register", async (req, res) => {
     `;
 
     try {
+      console.log("DEBUG: Attempting to send verification email to:", user.email);
       await sendEmail({
         email: user.email,
         subject: "LearnMate - Verify Your Email",
         message,
       });
+      console.log("DEBUG: Email sent successfully.");
       res.status(201).json({ message: "Registration successful. Please check your email to verify your account." });
     } catch (err) {
       console.error("DEBUG: Email failed to send:", err);

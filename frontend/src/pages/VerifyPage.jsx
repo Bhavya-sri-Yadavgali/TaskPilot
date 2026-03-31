@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import axios from "axios";
+import API from "../services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { CheckCircle, XCircle } from "lucide-react";
@@ -14,7 +14,7 @@ export default function VerifyPage() {
   useEffect(() => {
     const verifyEmail = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/auth/verify/${token}`);
+        const res = await API.get(`/auth/verify/${token}`);
         setStatus("success");
         setMessage(res.data.message);
       } catch (err) {

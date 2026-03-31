@@ -1,13 +1,11 @@
-import axios from "axios";
-
-const API = "https://learnmate-o40t.onrender.com/api/skills";
+import API from "./api";
 
 export const getSkills = async () => {
-  const res = await axios.get(API);
+  const res = await API.get("/skills");
   return res.data;
 };
 
 export const addSkill = async (skill) => {
-  const res = await axios.post(API, skill);
+  const res = await API.post("/skills", skill);
   return res.data;
 };

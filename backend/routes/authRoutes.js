@@ -2,11 +2,15 @@ const express = require("express")
 const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
 const router = express.Router()
+const crypto = require("crypto");
+const sendEmail = require("../utils/sendEmail");
+
 
 const User = require("../models/User")
 
 // Register user
 router.post("/register", async (req, res) => {
+  console.log("DEBUG: Handling /register request for email:", req.body.email);
   try {
     const {
       name,
@@ -38,6 +42,11 @@ router.post("/register", async (req, res) => {
       });
     }
 
+
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
     // 🔐 Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -47,19 +56,36 @@ router.post("/register", async (req, res) => {
       email,
       password: hashedPassword,
       dailyAvailableHours,
-      timeZone
+      timeZone,
+      verificationToken,
+      verificationExpires
     });
 
     await user.save();
 
-    res.status(201).json({
-      message: "User registered successfully"
-    });
 
+    const verificationUrl = `${process.env.APP_URL}/verify/${verificationToken}`;
+    const message = `
+      <h1>Account Verification</h1>
+      <p>Thank you for registering. Please click the link below to verify your email:</p>
+      <a href="${verificationUrl}" target="_blank">${verificationUrl}</a>
+      <p>This link will expire in 10 minutes.</p>
+    `;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: "LearnMate - Verify Your Email",
+        message,
+      });
+      res.status(201).json({ message: "Registration successful. Please check your email to verify your account." });
+    } catch (err) {
+      console.error("DEBUG: Email failed to send:", err);
+      // If email fails, we still created the user, but they'll need a "resend" button later
+      res.status(201).json({ message: "User registered, but verification email failed to send." });
+    }
   } catch (err) {
-    res.status(500).json({
-      message: "Server error", err: err.message, stack: err.stack
-    });
+    res.status(500).json({ message: "Server error", err: err.message });
   }
 });
 
@@ -75,12 +101,23 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
+
+
     // ✅ IMPORTANT: include password explicitly
     const user = await User.findOne({ email }).select("+password");
+
+//     if (!user.isVerified) {
+//   return res.status(403).json({ message: "Please verify your email before logging in." });
+// }
 
     if (!user || !user.password) {
       return res.status(400).json({ message: "User not found or missing password" });
     }
+
+
+    if (!user.isVerified) {
+  return res.status(403).json({ message: "Please verify your email before logging in." });
+}
 
     // 🔐 Compare passwords safely
     const isMatch = await bcrypt.compare(password, user.password);
@@ -104,6 +141,30 @@ router.post("/login", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error", err: error.message, stack: error.stack });
+  }
+});
+
+
+
+router.get("/verify/:token", async (req, res) => {
+  try {
+    const user = await User.findOne({
+      verificationToken: req.params.token,
+      verificationExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired verification token." });
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationExpires = undefined;
+    await user.save();
+
+    res.json({ message: "Email verified successfully! You can now log in." });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", err: err.message });
   }
 });
 

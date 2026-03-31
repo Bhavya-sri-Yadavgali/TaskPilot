@@ -3,19 +3,33 @@ import { Play, Pause, RotateCcw, Clock } from "lucide-react";
 
 export default function FocusSession() {
   
+  // 🔒 Data Isolation: Prefix keys with userId
+  const getUserId = () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return "guest";
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.userId || "guest";
+    } catch (e) {
+      return "guest";
+    }
+  };
+  const uId = getUserId();
+  const k = (key) => `${uId}_${key}`;
+
   // State Initialization from LocalStorage
   const [durationLimit, setDurationLimit] = useState(() => {
-    const saved = localStorage.getItem("focus_duration");
+    const saved = localStorage.getItem(k("focus_duration"));
     return saved !== null ? parseInt(saved) : 25 * 60;
   });
   
   const [timeLeft, setTimeLeft] = useState(() => {
-    const saved = localStorage.getItem("focus_timeLeft");
+    const saved = localStorage.getItem(k("focus_timeLeft"));
     return saved !== null ? parseInt(saved) : 25 * 60;
   });
   
   const [isActive, setIsActive] = useState(() => {
-    return localStorage.getItem("focus_isActive") === "true";
+    return localStorage.getItem(k("focus_isActive")) === "true";
   });
   
   const [customMinutes, setCustomMinutes] = useState("");
@@ -23,9 +37,9 @@ export default function FocusSession() {
 
   // Sync fundamental state changes to LocalStorage
   useEffect(() => {
-    localStorage.setItem("focus_duration", durationLimit);
-    localStorage.setItem("focus_timeLeft", timeLeft);
-    localStorage.setItem("focus_isActive", isActive);
+    localStorage.setItem(k("focus_duration"), durationLimit);
+    localStorage.setItem(k("focus_timeLeft"), timeLeft);
+    localStorage.setItem(k("focus_isActive"), isActive);
   }, [durationLimit, timeLeft, isActive]);
 
   // Main Timer Interval
@@ -33,12 +47,12 @@ export default function FocusSession() {
     if (isActive && timeLeft > 0) {
       
       // If we just became active or loaded the page, ensure endTime is reliable
-      const savedEndTime = localStorage.getItem("focus_endTime");
+      const savedEndTime = localStorage.getItem(k("focus_endTime"));
       let endTime;
       
       if (!savedEndTime) {
          endTime = Date.now() + timeLeft * 1000;
-         localStorage.setItem("focus_endTime", endTime);
+         localStorage.setItem(k("focus_endTime"), endTime);
       } else {
          endTime = parseInt(savedEndTime);
          // Correct time left immediately upon activation/reload
@@ -53,7 +67,7 @@ export default function FocusSession() {
         if (currentRemaining <= 0) {
           clearInterval(timerRef.current);
           setIsActive(false);
-          localStorage.removeItem("focus_endTime");
+          localStorage.removeItem(k("focus_endTime"));
           playAlarm();
         }
       }, 1000);
@@ -61,7 +75,7 @@ export default function FocusSession() {
     } else {
        // Clear interval and remove endTime mark when paused or stopped
        clearInterval(timerRef.current);
-       localStorage.removeItem("focus_endTime");
+       localStorage.removeItem(k("focus_endTime"));
     }
     
     return () => clearInterval(timerRef.current);
@@ -77,14 +91,14 @@ export default function FocusSession() {
   const resetTimer = () => {
     setIsActive(false);
     clearInterval(timerRef.current);
-    localStorage.removeItem("focus_endTime");
+    localStorage.removeItem(k("focus_endTime"));
     setTimeLeft(durationLimit);
   };
 
   const changeDuration = (mins) => {
     setIsActive(false);
     clearInterval(timerRef.current);
-    localStorage.removeItem("focus_endTime");
+    localStorage.removeItem(k("focus_endTime"));
     
     const newSeconds = Math.max(1, mins * 60);
     setDurationLimit(newSeconds);

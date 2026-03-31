@@ -48,14 +48,14 @@ export default function Register() {
     }
 
     try {
-      await API.post("/auth/register", {
+      const res = await API.post("/auth/register", {
         name: data.fullName,
         email: data.email,
         password: data.password,
         dailyAvailableHours: Number(data.dailyTargetHours) || 2,
         timeZone: "IST"
       });
-      alert("Registration Successful! Please login.");
+      alert(res.data.message || "Registration Successful!");
       navigate("/login");
     } catch (err) {
       alert(err.response?.data?.message || "Registration Failed");

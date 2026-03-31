@@ -85,7 +85,13 @@ const userSchema = new mongoose.Schema({
   streakCount: {
     type: Number,
     default: 0
-  }
+  },
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
+  verificationToken: String,
+  verificationExpires: Date
 
 }, { timestamps: true }) // handles createdAt automatically
 

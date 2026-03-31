@@ -2,13 +2,20 @@ const express = require("express")
 const router = express.Router()
 
 const StudyPlan = require("../models/StudyPlan")
+const auth = require("../middleware/auth")
 
 // Create Study Plan
-router.post("/create", async (req, res) => {
+router.post("/create", auth, async (req, res) => {
 
   try {
 
-    const studyPlan = new StudyPlan(req.body)
+    // 🔥 Strip user_id from body to prevent owner hijacking
+    delete req.body.user_id;
+
+    const studyPlan = new StudyPlan({
+      ...req.body,
+      user_id: req.user.userId
+    })
 
     await studyPlan.save()
 
@@ -27,13 +34,17 @@ router.post("/create", async (req, res) => {
 
 
 // Get all study plans
-router.get("/", async (req, res) => {
+router.get("/", auth, async (req, res) => {
 
-  const plans = await StudyPlan
-    .find()
-    .populate("tasks")
+  try {
+    const plans = await StudyPlan
+      .find({ user_id: req.user.userId })
+      .populate("tasks")
 
-  res.json(plans)
+    res.json(plans)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 
 })
 

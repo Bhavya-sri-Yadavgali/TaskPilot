@@ -32,6 +32,9 @@ export default function StudyPlan() {
   // Modals / Forms
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isEditingTask, setIsEditingTask] = useState(null);
+  const [completingTask, setCompletingTask] = useState(null);
+  const [actualHours, setActualHours] = useState("");
+  const [actualMinutes, setActualMinutes] = useState("");
   
   const [error, setError] = useState(null);
   const dateInputRef = useRef(null);
@@ -232,12 +235,29 @@ export default function StudyPlan() {
 
   const toggleStatus = async (task) => {
     if (isPastDay || task.status === "completed") return;
-    const newStatus = "completed";
+    
+    // 🔥 Instead of immediate toggle, open completion modal
+    setCompletingTask(task);
+    const totalMins = task.planned_duration || 0;
+    setActualHours(Math.floor(totalMins / 60).toString());
+    setActualMinutes((totalMins % 60).toString());
+  };
+
+  const handleConfirmCompletion = async () => {
+    if (!completingTask) return;
+    
     try {
-      await API.put(`/tasks/${task._id}`, { status: newStatus });
+      const totalMinutes = (parseInt(actualHours) || 0) * 60 + (parseInt(actualMinutes) || 0);
+      await API.put(`/tasks/${completingTask._id}`, { 
+        status: "completed",
+        actual_duration: totalMinutes,
+        completed_at: new Date().toISOString()
+      });
+      setCompletingTask(null);
       fetchData();
     } catch (err) {
       console.error(err);
+      setError("Failed to record completion.");
     }
   };
 
@@ -510,7 +530,12 @@ export default function StudyPlan() {
                   </div>
 
                   <div className="flex gap-3 pt-2">
-                    <Button type="button" onClick={() => setIsAddingTask(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl px-6 py-2">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      onClick={() => setIsAddingTask(false)}
+                      className="text-slate-600 hover:text-red-600 hover:bg-red-50 transition-colors font-bold"
+                    >
                       Cancel
                     </Button>
                     <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 py-2 shadow-md">
@@ -617,6 +642,67 @@ export default function StudyPlan() {
           </Card>
         </div>
 
+        {/* --- Task Completion Modal --- */}
+        {completingTask && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <Card className="w-full max-w-sm bg-white shadow-2xl rounded-[2rem] overflow-hidden border-none transform animate-in zoom-in-95 duration-200">
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle2 size={32} strokeWidth={2.5} />
+                </div>
+                
+                <h2 className="text-xl font-extrabold text-slate-800 mb-2">Great Job!</h2>
+                <p className="text-slate-500 text-sm font-medium mb-8">
+                  You finished <span className="text-indigo-600 font-bold">"{completingTask.title}"</span>. 
+                  How much time did it take?
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 mb-8">
+                  <div className="relative">
+                    <label className="absolute -top-2.5 left-4 bg-white px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Hours</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      autoFocus
+                      value={actualHours}
+                      onChange={(e) => setActualHours(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-3 text-2xl font-black text-slate-800 focus:outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 transition-all text-center"
+                    />
+                  </div>
+                  <div className="relative">
+                    <label className="absolute -top-2.5 left-4 bg-white px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Minutes</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      max="59"
+                      value={actualMinutes}
+                      onChange={(e) => setActualMinutes(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-3 text-2xl font-black text-slate-800 focus:outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-50 transition-all text-center"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setCompletingTask(null)}
+                    type="button"
+                    className="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 h-auto font-bold transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <Button 
+                    onClick={handleConfirmCompletion}
+                    className="flex-[2] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-200 rounded-2xl py-4 h-auto font-bold transition-all transform active:scale-95"
+                  >
+                    Complete
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );

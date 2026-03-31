@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { isSameDay, startOfDay } from "date-fns";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 
@@ -11,7 +12,9 @@ import {
   Flame,
   Plus,
   Award,
-  Zap
+  Zap,
+  Info,
+  X
 } from "lucide-react";
 
 import API from "../services/api";
@@ -26,6 +29,8 @@ export default function Dashboard() {
   const [currentTime] = useState(
     new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   );
+  
+  const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
 
   // Fetch data
   useEffect(() => {
@@ -63,21 +68,36 @@ export default function Dashboard() {
   if (error) return <p className="p-6 text-red-500 font-bold">{error}</p>;
   if (!progress) return <p className="p-6">Loading...</p>;
 
-  // --- Derived Data for UI ---
+  // --- Dynamic Today's Data ---
+  const today = startOfDay(new Date());
+  const todayTasks = tasks.filter(t => t.date && isSameDay(new Date(t.date), today));
+  
   // Study Time Metrics
-  const dailyGoalHours = 6;
-  const todayStudyTime = parseFloat((progress.totalStudyTime || 0).toFixed(1)); 
-  const studyProgressPercent = Math.min(100, Math.round((todayStudyTime / dailyGoalHours) * 100));
+  const todayStudyTimeMins = todayTasks.reduce((acc, t) => {
+    if (t.status !== "completed") return acc;
+    // use actual_duration if exists, else planned
+    return acc + (t.actual_duration || t.planned_duration || 0);
+  }, 0);
+  const todayStudyTime = parseFloat((todayStudyTimeMins / 60).toFixed(1));
+
+  const totalPlannedMinsToday = todayTasks.reduce((acc, t) => acc + (t.planned_duration || 0), 0);
+  const dailyGoalHours = parseFloat((totalPlannedMinsToday / 60).toFixed(1)); 
+  
+  const studyProgressPercent = dailyGoalHours > 0 
+    ? Math.min(100, Math.round((todayStudyTime / dailyGoalHours) * 100))
+    : 0;
   const remainingStudyTime = Math.max(0, dailyGoalHours - todayStudyTime).toFixed(1);
 
   // Tasks Metrics
-  const dailyTaskGoal = 8;
-  const todayTasksCompleted = progress.totalTasks || 0;
-  const taskProgressPercent = Math.min(100, Math.round((todayTasksCompleted / dailyTaskGoal) * 100));
-  const remainingTasks = Math.max(0, dailyTaskGoal - todayTasksCompleted);
+  const dailyTaskGoal = todayTasks.length; 
+  const todayTasksCompleted = todayTasks.filter(t => t.status === "completed").length;
+  const taskProgressPercent = dailyTaskGoal > 0 
+    ? Math.min(100, Math.round((todayTasksCompleted / dailyTaskGoal) * 100))
+    : 0;
+  const remainingTasks = Math.max(0, todayTasks.length - todayTasksCompleted);
 
   // Focus Score Metric
-  const focusScore = Math.min(100, Math.max(0, Math.round((progress.overRunFactor || 0.85) * 100)));
+  const focusScore = Math.min(100, Math.max(0, Math.round((progress.overRunFactor || 1.0) * 100)));
   const focusLabel = focusScore >= 80 ? "Excellent" : focusScore >= 50 ? "Good" : "Needs Work";
 
   // --- Real Streak & Heatmap Calculation from Tasks ---
@@ -229,22 +249,39 @@ export default function Dashboard() {
             <Card className="border border-slate-100 shadow-sm bg-white rounded-2xl relative overflow-hidden">
               <CardContent className="p-5">
                 <div className="flex justify-between items-start mb-4">
-                  <div className="p-2.5 bg-blue-50 text-blue-500 rounded-xl">
+                  <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl shadow-sm">
                     <Clock size={20} className="stroke-[2.5]"/>
                   </div>
-                  <span className="text-xs font-bold bg-blue-50 text-blue-500 px-2.5 py-1 rounded-md">Today</span>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-extrabold bg-blue-600 text-white px-2 py-0.5 rounded-full shadow-lg shadow-blue-200 uppercase tracking-wider mb-1">
+                      Live
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400">TODAY</span>
+                  </div>
                 </div>
-                <p className="text-slate-500 text-sm font-medium mb-1">Total Study Time</p>
-                <div className="flex items-baseline gap-1 mb-4">
-                  <h2 className="text-3xl font-extrabold text-blue-600">{todayStudyTime}h</h2>
-                  <span className="text-slate-400 font-medium">/ {dailyGoalHours}h</span>
+                
+                <p className="text-slate-500 text-sm font-medium mb-1">Study Hours</p>
+                <div className="flex flex-col gap-1.5 py-1">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-xs font-semibold text-slate-400">Actual Studied Time</span>
+                    <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-indigo-600 tracking-tight drop-shadow-sm">
+                      {todayStudyTime}h
+                    </h2>
+                  </div>
+                  <div className="flex justify-between items-center pt-3 border-t border-slate-100/60 mt-1">
+                    <span className="text-[11px] font-bold text-slate-400/80 uppercase tracking-tight">Planned Study Time</span>
+                    <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded-md">
+                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                       <span className="text-sm font-bold text-slate-600">{dailyGoalHours}h</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full mb-2">
-                  <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${studyProgressPercent}%` }}></div>
-                </div>
-                <p className="text-xs text-slate-400 font-medium mt-2">
-                  {studyProgressPercent}% of daily goal • {remainingStudyTime}h remaining
-                </p>
+
+                {todayStudyTime >= dailyGoalHours && todayTasksCompleted >= dailyTaskGoal && dailyGoalHours > 0 ? (
+                  <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[10px] font-bold px-3 py-2 rounded-xl flex items-center gap-2 mt-4 shadow-lg shadow-emerald-100 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <CheckCircle2 size={14} className="stroke-[3]" /> Goal Achieved! ✨
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
@@ -272,24 +309,50 @@ export default function Dashboard() {
             </Card>
 
             {/* Card 3: Focus Score */}
-            <Card className="border border-slate-100 shadow-sm bg-white rounded-2xl relative overflow-hidden">
+            <Card className="border border-slate-100 shadow-sm bg-white rounded-2xl relative overflow-hidden group">
               <CardContent className="p-5">
                 <div className="flex justify-between items-start mb-4">
                   <div className="p-2.5 bg-purple-50 text-purple-500 rounded-xl">
                     <Zap size={20} className="stroke-[2.5]" />
                   </div>
-                  <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2.5 py-1 rounded-md">{focusLabel}</span>
+                  <div className="flex items-center gap-2">
+                    {progress.totalTasks > 0 && (
+                      <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2.5 py-1 rounded-md">{focusLabel}</span>
+                    )}
+                    <button 
+                      onClick={() => setIsFocusModalOpen(true)}
+                      className="text-slate-300 hover:text-purple-500 transition-colors"
+                      title="What is Focus Score?"
+                    >
+                      <Info size={16} />
+                    </button>
+                  </div>
                 </div>
+                
                 <p className="text-slate-500 text-sm font-medium mb-1">Focus Score</p>
-                <div className="flex items-baseline gap-1 mb-4">
-                  <h2 className="text-3xl font-extrabold text-purple-600">{focusScore}%</h2>
-                </div>
-                <div className="w-full bg-slate-100 h-2 rounded-full mb-2">
-                  <div className="bg-purple-500 h-2 rounded-full" style={{ width: `${focusScore}%` }}></div>
-                </div>
-                <p className="text-xs text-slate-400 font-medium mt-2">
-                  Based on task completion & consistency
-                </p>
+                
+                {progress.totalTasks > 0 ? (
+                  <>
+                    <div className="flex items-baseline gap-1 mb-4">
+                      <h2 className="text-3xl font-extrabold text-purple-600">{focusScore}%</h2>
+                    </div>
+                    <div className="w-full bg-slate-100 h-2 rounded-full mb-2">
+                      <div className="bg-purple-500 h-2 rounded-full transition-all duration-1000" style={{ width: `${focusScore}%` }}></div>
+                    </div>
+                    <p className="text-xs text-slate-400 font-medium mt-2">
+                      Based on task completion & consistency
+                    </p>
+                  </>
+                ) : (
+                  <div className="py-2">
+                    <p className="text-[13px] font-semibold text-slate-600 leading-snug">
+                      No data yet. Start tracking your tasks to see your Focus Score.
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1 font-medium">
+                      Plan your time and track actual progress to measure efficiency.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -349,57 +412,124 @@ export default function Dashboard() {
         </div>
 
         {/* Skill Progress */}
-        <div className="space-y-4 mb-10 pb-10">
-          <div className="flex justify-between items-center bg-white p-3 px-5 rounded-2xl shadow-sm border border-slate-100">
-            <h2 className="text-lg font-bold flex items-center gap-2 text-indigo-500">
-              <div className="p-1.5 bg-indigo-50 rounded-md text-indigo-600"><Award size={16} /></div>
-              Skill Progress
-            </h2>
-            <button className="text-sm font-bold text-indigo-600 bg-indigo-50 px-4 py-1.5 rounded-full hover:bg-indigo-100 border border-indigo-100 transition-colors">
-              View All Skills
-            </button>
-          </div>
+        {skills.length > 0 && (
+          <div className="space-y-4 mb-10 pb-10">
+            <div className="flex justify-between items-center bg-white p-3 px-5 rounded-2xl shadow-sm border border-slate-100">
+              <h2 className="text-lg font-bold flex items-center gap-2 text-indigo-500">
+                <div className="p-1.5 bg-indigo-50 rounded-md text-indigo-600"><Award size={16} /></div>
+                Skill Progress
+              </h2>
+              <button 
+                onClick={() => navigate('/skills')}
+                className="text-sm font-bold text-indigo-600 bg-indigo-50 px-4 py-1.5 rounded-full hover:bg-indigo-100 border border-indigo-100 transition-colors">
+                View All Skills
+              </button>
+            </div>
 
-          <div className="grid md:grid-cols-2 gap-5">
-            {skills.map((skill, index) => {
-              const skillProgressObj = progress.skills?.find(s => s.name === skill.skill_name);
-              const skillProgress = skillProgressObj ? skillProgressObj.progress : 0;
-              const isEven = index % 2 === 0;
-              
-              return (
-              <Card key={skill._id} className="border border-slate-100 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <h3 className="font-bold text-slate-800 text-lg">{skill.skill_name}</h3>
-                      <p className="text-xs text-slate-400 mt-1 font-medium">{skill.category || 'Programming'} • {skillProgressObj?.hoursSpent || 0}h practiced</p>
+            <div className="grid md:grid-cols-2 gap-5">
+              {skills.map((skill, index) => {
+                const skillProgressObj = progress.skills?.find(s => s.name === skill.skill_name);
+                const skillProgress = skillProgressObj ? skillProgressObj.progress : 0;
+                const isEven = index % 2 === 0;
+                
+                return (
+                <Card key={skill._id} className="border border-slate-100 shadow-sm rounded-2xl bg-white hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-lg">{skill.skill_name}</h3>
+                        <p className="text-xs text-slate-400 mt-1 font-medium">{skill.category || 'Programming'} • {skillProgressObj?.hoursSpent || 0}h practiced</p>
+                      </div>
+                      <h2 className={`text-2xl font-extrabold ${isEven ? 'text-blue-600' : 'text-amber-500'}`}>{skillProgress}%</h2>
                     </div>
-                    <h2 className={`text-2xl font-extrabold ${isEven ? 'text-blue-600' : 'text-amber-500'}`}>{skillProgress}%</h2>
-                  </div>
 
-                  <div className="w-full bg-slate-100 h-2.5 rounded-full mb-3 relative overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-1000 ${isEven ? 'bg-blue-500' : 'bg-amber-400'}`}
-                      style={{ width: `${skillProgress}%` }}
-                    />
-                    {/* Simulated milestones */}
-                    <div className="absolute top-0 left-1/3 w-1 h-full bg-white/40"></div>
-                    <div className="absolute top-0 left-2/3 w-1 h-full bg-white/40"></div>
-                  </div>
-                  
-                  <p className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
-                    <span className={isEven ? "text-emerald-500" : "text-amber-500"}>
-                      {isEven ? "✨" : "🔥"}
-                    </span>
-                    {isEven ? "Great progress!" : "Keep it up!"}
-                  </p>
-                </CardContent>
-              </Card>
-            )})}
+                    <div className="w-full bg-slate-100 h-2.5 rounded-full mb-3 relative overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000 ${isEven ? 'bg-blue-500' : 'bg-amber-400'}`}
+                        style={{ width: `${skillProgress}%` }}
+                      />
+                      {/* Simulated milestones */}
+                      <div className="absolute top-0 left-1/3 w-1 h-full bg-white/40"></div>
+                      <div className="absolute top-0 left-2/3 w-1 h-full bg-white/40"></div>
+                    </div>
+                    
+                    <p className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                      <span className={isEven ? "text-emerald-500" : "text-amber-500"}>
+                        {isEven ? "✨" : "🔥"}
+                      </span>
+                      {isEven ? "Great progress!" : "Keep it up!"}
+                    </p>
+                  </CardContent>
+                </Card>
+              )})}
+            </div>
           </div>
-        </div>
+        )}
 
       </div>
+
+      {/* Focus Score Modal */}
+      {isFocusModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <Card className="w-full max-w-md bg-white rounded-2xl shadow-2xl border-none overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-purple-600 p-6 text-white relative">
+              <button 
+                onClick={() => setIsFocusModalOpen(false)}
+                className="absolute top-4 right-4 p-1 hover:bg-white/20 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+              <div className="p-3 bg-white/20 w-fit rounded-xl mb-4">
+                <Zap size={24} className="fill-white" />
+              </div>
+              <h3 className="text-xl font-bold">Focus Score</h3>
+              <p className="text-purple-100 text-sm mt-1">Your Time Efficiency Metric</p>
+            </div>
+            
+            <CardContent className="p-6 space-y-4">
+              <div className="space-y-2">
+                <p className="text-slate-600 font-medium leading-relaxed">
+                  This score shows how closely you stick to your planned time. It helps you understand your productivity patterns.
+                </p>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Formula</p>
+                  <code className="text-purple-600 font-bold text-sm bg-purple-50 px-2 py-1 rounded">
+                    (Planned Time ÷ Actual Time) × 100
+                  </code>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-emerald-50 bg-emerald-50/30">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                  <p className="text-xs font-semibold text-slate-700">
+                    <span className="text-emerald-600">100%</span> → Perfect estimate
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-blue-50 bg-blue-50/30">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                  <p className="text-xs font-semibold text-slate-700">
+                    <span className="text-blue-600">&gt; 100%</span> → Finished faster than planned
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-amber-50 bg-amber-50/30">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                  <p className="text-xs font-semibold text-slate-700">
+                    <span className="text-amber-600">&lt; 100%</span> → Took longer than expected
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-indigo-50 p-3 rounded-xl">
+                <p className="text-[11px] text-indigo-700 font-medium leading-relaxed">
+                  <span className="font-bold">Pro Tip:</span> Lower scores on complex tasks like coding or problem-solving are normal as they often require deep work and exploration.
+                </p>
+              </div>
+
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

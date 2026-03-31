@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Brain, Calendar, Timer, ListTodo, X, LogOut } from "lucide-react";
+import { LayoutDashboard, Brain, Calendar, Timer, ListTodo, X, LogOut, TrendingUp } from "lucide-react";
 
 function Sidebar({ isOpen, setIsOpen }) {
   const location = useLocation();
@@ -13,7 +13,7 @@ function Sidebar({ isOpen, setIsOpen }) {
     { name: "Dashboard", path: "/dashboard", icon: <LayoutDashboard size={20}/> },
     { name: "Skill Manager", path: "/skills", icon: <Brain size={20}/> },
     { name: "Study Planner", path: "/studyplan", icon: <Calendar size={20}/> },
-    { name: "Progress", path: "/progress", icon: <Calendar size={20}/> },
+    { name: "Progress", path: "/progress", icon: <TrendingUp size={20}/> },
     { name: "Focus Session", path: "/focus", icon: <Timer size={20}/> },
     { name: "To-Do List", path: "/todos", icon: <ListTodo size={20}/> },
   ];

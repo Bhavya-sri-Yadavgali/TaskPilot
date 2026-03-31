@@ -1,68 +1,21 @@
-// const express = require("express")
-// const router = express.Router()
-
-// const Progress = require("../models/Progress")
-
-// // Create progress entry
-// router.post("/add", async (req, res) => {
-
-//   try {
-
-//     const progress = new Progress(req.body)
-
-//     await progress.save()
-
-//     res.json({
-//       message: "Progress saved",
-//       progress
-//     })
-
-//   } catch (error) {
-
-//     res.status(500).json({ error: error.message })
-
-//   }
-
-// })
-
-
-// // Get progress
-// router.get("/", async (req, res) => {
-
-//   const progress = await Progress
-//     .find()
-//     .populate("user_id")
-//     .populate("skill_id")
-
-//   res.json(progress)
-
-// })
-
-// module.exports = router
-
-
-
-
-
-
-
 // routes/progressRoutes.js
-
 const express = require("express");
 const router = express.Router();
 
 const Progress = require("../models/Progress");
+const Task = require("../models/Task");
 const auth = require("../middleware/auth");
 
 
 // ✅ CREATE PROGRESS (POST)
 router.post("/",auth, async (req, res) => {
   try {
-    const userId = req.user.id;
+    // 🔥 Strip user_id from body to prevent owner hijacking
+    delete req.body.user_id;
 
     const progress = new Progress({
       ...req.body,
-      user_id: userId // 🔥 link to user
+      user_id: req.user.userId // 🔥 link to user
     });
 
     await progress.save();
@@ -81,7 +34,7 @@ router.post("/",auth, async (req, res) => {
 // ✅ GET ANALYTICS
 router.get("/", auth,async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     const progressData = await Progress.find({ user_id: userId })
       .populate("skill_id");
@@ -156,11 +109,30 @@ router.get("/", auth,async (req, res) => {
     // 🔹 Daily Average
     const dailyAverage = (totalStudyTime / 7).toFixed(1);
 
+    // 🔹 Real-time Focus Factor (overRunFactor)
+    const completedTasks = await Task.find({ user_id: userId, status: "completed" });
+    let overRunFactor = 1.0;
+
+    if (completedTasks.length > 0) {
+      let totalPlanned = 0;
+      let totalActual = 0;
+
+      completedTasks.forEach(t => {
+        totalPlanned += (t.planned_duration || 0);
+        totalActual += (t.actual_duration || t.planned_duration || 0); // fallback to planned if actual is missing
+      });
+
+      if (totalActual > 0) {
+        overRunFactor = totalPlanned / totalActual;
+      }
+    }
+
     res.json({
       totalStudyTime,
       totalTasks,
       mostPracticed,
       dailyAverage,
+      overRunFactor, // 🔥 Added Focus Factor
       weeklyData,
       skills
     });
@@ -175,7 +147,7 @@ router.get("/", auth,async (req, res) => {
 // ✅ RAW DATA (for Skill Manager)
 router.get("/raw", auth, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId;
 
     const progress = await Progress.find({ user_id: userId });
 

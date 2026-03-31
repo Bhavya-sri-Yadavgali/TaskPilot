@@ -10,6 +10,7 @@ import StudyPlan from "./pages/StudyPlan";
 import Progress from "./pages/Progress";
 import FocusSession from "./pages/FocusSession";
 import TodoList from "./pages/TodoList";
+import VerifyPage from "./pages/VerifyPage";
 
 // 🔐 Check if user is logged in
 const isAuthenticated = () => {
@@ -47,6 +48,8 @@ function App() {
           </PublicRoute>
         }
       />
+
+      <Route path="/verify/:token" element={<VerifyPage />} />
 
       {/* 🔐 Protected Routes (With Sidebar) */}
       <Route

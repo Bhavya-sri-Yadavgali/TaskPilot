@@ -172,7 +172,11 @@ export default function Skills() {
               <h1 className="text-3xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">
                 Skill Manager
               </h1>
-              <p className="text-slate-500 font-medium mt-0.5">Track and manage your learning journey across different skills</p>
+              <p className="text-slate-500 font-medium mt-0.5">
+                {totalSkills > 0 
+                  ? "Master new capabilities and track your progress daily" 
+                  : "Track and master your learning journey effortlessly"}
+              </p>
             </div>
           </div>
           <Button onClick={openAddModal} className="bg-indigo-500 hover:bg-indigo-600 shadow-md text-white rounded-xl px-5 py-2.5 h-auto font-semibold shrink-0">
@@ -223,10 +227,35 @@ export default function Skills() {
         <div className="pt-2">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-slate-800">Your Skills</h2>
-            <p className="text-slate-500 text-sm font-medium">Monitor your progress across all learning areas</p>
+            <p className="text-slate-500 text-sm font-medium">
+              {totalSkills > 0 
+                ? "Monitor your progress across all learning areas" 
+                : "No skills added yet. Let's get started!"}
+            </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          {totalSkills === 0 ? (
+            <Card className="border-2 border-dashed border-slate-200 shadow-none rounded-3xl bg-white/50 p-12 text-center">
+              <div className="max-w-sm mx-auto space-y-6">
+                <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto text-indigo-500">
+                  <Award size={40} className="stroke-[2]" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800 mb-2">Ready to learn something new?</h3>
+                  <p className="text-slate-500 text-sm font-medium">
+                    Adding skills helps you organize your learning path and track exactly how much time you're investing in your growth.
+                  </p>
+                </div>
+                <Button 
+                  onClick={openAddModal} 
+                  className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl px-8 py-3 h-auto font-bold shadow-lg shadow-indigo-200 transition-all hover:scale-105 active:scale-95"
+                >
+                  <Plus className="mr-2 size-4 stroke-[3]" /> Add New Skill
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <div className="grid md:grid-cols-3 gap-6">
             {skillsWithProgress.map((skill) => {
 
               // Safe static Tailwind class maps for Badges
@@ -303,7 +332,8 @@ export default function Skills() {
                 </Card>
               );
             })}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -316,7 +346,7 @@ export default function Skills() {
                 {editingSkill ? <Edit2 size={18} className="text-indigo-500" /> : <Plus size={18} className="text-indigo-500" />}
                 {editingSkill ? "Edit Skill" : "Add New Skill"}
               </h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+              <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -424,13 +454,13 @@ export default function Skills() {
                 </div>
 
                 <div className="pt-4 flex gap-3">
-                  <Button
+                  <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl py-2.5 h-auto font-semibold"
+                    className="flex-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl py-2.5 font-bold transition-all"
                   >
                     Cancel
-                  </Button>
+                  </button>
                   <Button
                     type="submit"
                     disabled={isAdding}

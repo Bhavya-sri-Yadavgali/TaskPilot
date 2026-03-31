@@ -4,6 +4,12 @@ import {
   PieChart, 
   Pie, 
   Cell, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip,
   ResponsiveContainer, 
   Tooltip as RechartsTooltip
 } from "recharts";
@@ -33,6 +39,7 @@ const CATEGORY_COLORS = {
 export default function Progress() {
   const [tasks, setTasks] = useState([]);
   const [skills, setSkills] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
   // Week Selection State
@@ -51,13 +58,22 @@ export default function Progress() {
       } catch(err) {
         console.error(err);
         setError("Your session may have expired. Please log in again.");
+      } finally {
+        setLoading(false);
       }
     };
     fetchAnalyticsData();
   }, []);
 
+  const isCurrentWeek = isSameWeek(currentDate, new Date(), { weekStartsOn: 1 });
+  const isFutureOrCurrentWeek = startOfWeek(currentDate, { weekStartsOn: 1 }) >= startOfWeek(new Date(), { weekStartsOn: 1 });
+
   const handlePrevWeek = () => setCurrentDate(subWeeks(currentDate, 1));
-  const handleNextWeek = () => setCurrentDate(addWeeks(currentDate, 1));
+  const handleNextWeek = () => {
+    if (!isFutureOrCurrentWeek) {
+      setCurrentDate(addWeeks(currentDate, 1));
+    }
+  };
   const handleCurrentWeek = () => setCurrentDate(new Date());
 
   const {
@@ -81,9 +97,10 @@ export default function Progress() {
     const skillLifetimeMins = {};
     
     completedTasks.forEach(t => {
-      let dur = t.planned_duration || 0;
-      // Recalculate duration if we just added start/end times in previous tasks
-      if (t.start_time && t.end_time) {
+      // 🚀 Prioritize actual_duration, then fall back to time-diff or planned
+      let dur = t.actual_duration || t.planned_duration || 0;
+      
+      if (!t.actual_duration && t.start_time && t.end_time) {
         const sMins = parseInt(t.start_time.split(':')[0]) * 60 + parseInt(t.start_time.split(':')[1]);
         const eMins = parseInt(t.end_time.split(':')[0]) * 60 + parseInt(t.end_time.split(':')[1]);
         let diff = eMins - sMins;
@@ -133,8 +150,9 @@ export default function Progress() {
     const weekSkillMins = {};
 
     weekTasks.forEach(t => {
-      let dur = t.planned_duration || 0;
-      if (t.start_time && t.end_time) {
+      // 🚀 Prioritize actual_duration, then fall back to time-diff or planned
+      let dur = t.actual_duration || t.planned_duration || 0;
+      if (!t.actual_duration && t.start_time && t.end_time) {
         const sMins = parseInt(t.start_time.split(':')[0]) * 60 + parseInt(t.start_time.split(':')[1]);
         const eMins = parseInt(t.end_time.split(':')[0]) * 60 + parseInt(t.end_time.split(':')[1]);
         let diff = eMins - sMins;
@@ -202,11 +220,23 @@ export default function Progress() {
   }, [tasks, skills, currentDate]);
 
   if (error) return <p className="p-6 text-red-500 font-bold">{error}</p>;
-  if (tasks.length === 0 && skills.length === 0) return <p className="p-6 text-slate-500 font-medium">Loading progress analytics...</p>;
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium animate-pulse">Loading analytics...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const weekStartStr = format(startOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d");
+  const hasNoData = tasks.length === 0 && skills.length === 0;
+
+  const targetWeekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const weekStartStr = format(targetWeekStart, "MMM d");
   const weekEndStr = format(endOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d, yyyy");
-  const isCurrentWeek = isSameWeek(currentDate, new Date(), { weekStartsOn: 1 });
 
   const weeklyGoal = 20; 
   const percentComplete = Math.min(Math.round((weeklyStudyHours / weeklyGoal) * 100), 100);
@@ -234,7 +264,29 @@ export default function Progress() {
            </div>
         </div>
 
-        {/* Top Summary Stats */}
+        {hasNoData ? (
+          <Card className="border-none shadow-sm rounded-2xl bg-white p-12 text-center">
+            <div className="max-w-md mx-auto space-y-6">
+              <div className="w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto text-indigo-500">
+                <TrendingUp size={40} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">No Progress Data Yet</h2>
+                <p className="text-slate-500 font-medium">
+                  Once you add skills and complete tasks in your study planner, your learning journey will be visualized here.
+                </p>
+              </div>
+              <Button 
+                onClick={() => window.location.href = "/skills"} 
+                className="bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl px-8 py-3 h-auto font-bold"
+              >
+                Add Skills to Track Progress
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <>
+            {/* Top Summary Stats */}
         <div className="grid md:grid-cols-3 gap-5">
            <Card className="border-none shadow-sm rounded-2xl bg-white">
              <CardContent className="p-5 flex justify-between items-start h-full">
@@ -293,7 +345,13 @@ export default function Progress() {
               <div className="text-xs font-bold text-blue-600 bg-blue-50 px-4 py-1.5 rounded-lg flex items-center gap-2 min-w-[150px] justify-center text-center shadow-sm">
                 {weekStartStr} - {weekEndStr} 
               </div>
-              <Button onClick={handleNextWeek} variant="outline" size="icon" className="h-8 w-8 rounded-lg border-slate-200 text-slate-600 hover:bg-slate-100">
+              <Button 
+                onClick={handleNextWeek} 
+                variant="outline" 
+                size="icon" 
+                className={`h-8 w-8 rounded-lg border-slate-200 text-slate-600 ${isFutureOrCurrentWeek ? 'opacity-40 cursor-not-allowed bg-slate-50' : 'hover:bg-slate-100'}`}
+                disabled={isFutureOrCurrentWeek}
+              >
                 <ChevronRight size={16} />
               </Button>
             </div>
@@ -308,6 +366,45 @@ export default function Progress() {
                 </div>
             )}
           </CardContent>
+        </Card>
+
+        {/* Weekly Activity Chart (The missing piece) */}
+        <Card className="border-none shadow-sm rounded-2xl bg-white overflow-hidden p-6">
+          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-6">
+            <div className="p-1.5 bg-blue-50 text-blue-500 rounded-lg">
+              <Clock size={14} className="stroke-[3]" />
+            </div>
+            Weekly Study Sessions (Activity Chart)
+          </h2>
+          <div className="h-[250px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis 
+                  dataKey="week" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 600 }}
+                  dy={10}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 600 }}
+                />
+                <Tooltip 
+                  cursor={{ fill: '#F8FAFC' }}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                />
+                <Bar 
+                  dataKey="hours" 
+                  fill="#3b82f6" 
+                  radius={[6, 6, 0, 0]} 
+                  barSize={40}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </Card>
 
         {/* Main Charts Row */}
@@ -448,11 +545,11 @@ export default function Progress() {
                 })
               )}
             </div>
-
           </CardContent>
         </Card>
-
-      </div>
-    </div>
+      </>
+    )}
+  </div>
+</div>
   );
 }

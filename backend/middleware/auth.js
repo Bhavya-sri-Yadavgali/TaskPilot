@@ -14,6 +14,10 @@ module.exports = function (req, res, next) {
 
     const decoded = jwt.verify(actualToken, process.env.JWT_SECRET);
 
+    if (!decoded.userId) {
+       return res.status(401).json({ message: "Invalid token payload: missing userId" });
+    }
+
     req.user = decoded; // ✅ THIS FIXES YOUR ERROR
 
     next();

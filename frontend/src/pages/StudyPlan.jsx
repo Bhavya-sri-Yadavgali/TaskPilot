@@ -40,6 +40,7 @@ export default function StudyPlan() {
   const dateInputRef = useRef(null);
   const timetableRef = useRef(null);
   const [hoverTime, setHoverTime] = useState(null);
+  const [isHoveringTask, setIsHoveringTask] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0 });
 
   // Form State
@@ -476,7 +477,7 @@ export default function StudyPlan() {
                 ))}
 
                 {/* Hover Indicator Line */}
-                {hoverTime && !isPastDay && (
+                {hoverTime && !isPastDay && !isHoveringTask && (
                   <div 
                     className="absolute top-0 bottom-0 w-px bg-blue-500 z-20 pointer-events-none"
                     style={{ left: `${mousePos.x}px` }}
@@ -502,6 +503,8 @@ export default function StudyPlan() {
                         e.stopPropagation();
                         handleEdit(task);
                       }}
+                      onMouseEnter={() => setIsHoveringTask(true)}
+                      onMouseLeave={() => setIsHoveringTask(false)}
                       className="absolute top-0 bottom-0 bg-gradient-to-br from-blue-500 to-indigo-600 border-l-2 border-white/20 hover:from-blue-600 hover:to-indigo-700 transition-all group cursor-pointer z-10 shadow-sm first:rounded-l-xl last:rounded-r-xl"
                       style={{ left: `${startPercent}%`, width: `${width}%` }}
                     >

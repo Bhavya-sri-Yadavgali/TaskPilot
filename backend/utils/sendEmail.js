@@ -12,7 +12,9 @@ const sendEmail = async (options) => {
     },
     tls: {
       rejectUnauthorized: false
-    }
+    },
+    family: 4, // Force IPv4
+    connectionTimeout: 10000 // 10 seconds
   });
 
   const mailOptions = {

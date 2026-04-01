@@ -92,6 +92,7 @@ router.post("/register", async (req, res) => {
       res.status(201).json({ message: "User registered, but verification email failed to send." });
     }
   } catch (err) {
+    console.error("DEBUG: Registration Error:", err);
     res.status(500).json({ message: "Server error", err: err.message });
   }
 });
@@ -171,6 +172,7 @@ router.get("/verify/:token", async (req, res) => {
 
     res.json({ message: "Email verified successfully! You can now log in." });
   } catch (err) {
+    console.error("DEBUG: Verification Error:", err);
     res.status(500).json({ message: "Server error", err: err.message });
   }
 });
@@ -184,7 +186,7 @@ router.get("/profile", auth, async (req, res) => {
     }
     res.json(user);
   } catch (err) {
-    console.error(err);
+    console.error("DEBUG: Profile Fetch Error:", err);
     res.status(500).json({ message: "Server error", err: err.message });
   }
 });

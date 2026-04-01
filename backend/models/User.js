@@ -77,7 +77,6 @@ const userSchema = new mongoose.Schema({
 
   timeZone: {
     type: String,
-    enum: ["UTC", "IST", "EST", "PST"],
     required: true
   },
 

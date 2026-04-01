@@ -61,7 +61,8 @@ router.post("/register", async (req, res) => {
       dailyAvailableHours,
       timeZone,
       verificationToken,
-      verificationExpires
+      verificationExpires,
+      isVerified: true
     });
 
     console.log("DEBUG: Saving new user to database...");

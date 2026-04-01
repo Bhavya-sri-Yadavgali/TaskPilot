@@ -103,27 +103,20 @@ export default function Dashboard() {
   // --- Real Streak & Heatmap Calculation from Tasks ---
   const completedTasks = tasks.filter(t => t.status === "completed" && t.date);
   
-  // Get unique dates (normalized to YYYY-MM-DD local time)
-  const uniqueDatesSet = new Set(
-    completedTasks.map(t => {
-       const d = new Date(t.date);
-       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    })
-  );
-  const activeDates = Array.from(uniqueDatesSet).sort(); // ascending
+  // Get unique day-start timestamps for reliable comparison
+  const completedDateStamps = Array.from(new Set(
+    completedTasks.map(t => startOfDay(new Date(t.date)).getTime())
+  )).sort((a, b) => a - b);
 
   let bestStreak = 0;
   let currentStreak = 0;
 
-  if (activeDates.length > 0) {
+  if (completedDateStamps.length > 0) {
+    // Calculate best streak
     let currentRun = 1;
     bestStreak = 1;
-    for (let i = 1; i < activeDates.length; i++) {
-       const prevDate = new Date(activeDates[i-1]);
-       const currDate = new Date(activeDates[i]);
-       const diffTime = Math.abs(currDate - prevDate);
-       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-       
+    for (let i = 1; i < completedDateStamps.length; i++) {
+       const diffDays = Math.round((completedDateStamps[i] - completedDateStamps[i-1]) / (1000 * 60 * 60 * 24));
        if (diffDays === 1) {
           currentRun++;
           if (currentRun > bestStreak) bestStreak = currentRun;
@@ -132,33 +125,19 @@ export default function Dashboard() {
        }
     }
 
-    // Calculate current streak
-    const todayStr = (() => {
-       const d = new Date();
-       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    })();
-    const yesterdayStr = (() => {
-       const d = new Date();
-       d.setDate(d.getDate() - 1);
-       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    })();
+    // Calculate current streak (ending today or yesterday)
+    const todayStamp = startOfDay(new Date()).getTime();
+    const yesterdayStamp = todayStamp - (24 * 60 * 60 * 1000);
+    const lastStamp = completedDateStamps[completedDateStamps.length - 1];
 
-    let streakCheckDate = new Date(activeDates[activeDates.length - 1]);
-    const lastDateStr = `${streakCheckDate.getFullYear()}-${String(streakCheckDate.getMonth()+1).padStart(2,'0')}-${String(streakCheckDate.getDate()).padStart(2,'0')}`;
-
-    if (lastDateStr === todayStr || lastDateStr === yesterdayStr) {
+    if (lastStamp === todayStamp || lastStamp === yesterdayStamp) {
        currentStreak = 1;
-       let checkDate = new Date(streakCheckDate);
-       checkDate.setDate(checkDate.getDate() - 1);
+       let checkStamp = lastStamp - (24 * 60 * 60 * 1000);
+       const stampSet = new Set(completedDateStamps);
        
-       while(true) {
-         const checkStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth()+1).padStart(2,'0')}-${String(checkDate.getDate()).padStart(2,'0')}`;
-         if (uniqueDatesSet.has(checkStr)) {
-            currentStreak++;
-            checkDate.setDate(checkDate.getDate() - 1);
-         } else {
-            break;
-         }
+       while (stampSet.has(checkStamp)) {
+          currentStreak++;
+          checkStamp -= (24 * 60 * 60 * 1000);
        }
     }
   }
@@ -316,7 +295,7 @@ export default function Dashboard() {
                     <Zap size={20} className="stroke-[2.5]" />
                   </div>
                   <div className="flex items-center gap-2">
-                    {progress.totalTasks > 0 && (
+                    {(progress.totalTasks > 0 || todayTasksCompleted > 0) && (
                       <span className="text-xs font-bold bg-purple-50 text-purple-600 px-2.5 py-1 rounded-md">{focusLabel}</span>
                     )}
                     <button 
@@ -331,7 +310,7 @@ export default function Dashboard() {
                 
                 <p className="text-slate-500 text-sm font-medium mb-1">Focus Score</p>
                 
-                {progress.totalTasks > 0 ? (
+                {(progress.totalTasks > 0 || todayTasksCompleted > 0) ? (
                   <>
                     <div className="flex items-baseline gap-1 mb-4">
                       <h2 className="text-3xl font-extrabold text-purple-600">{focusScore}%</h2>

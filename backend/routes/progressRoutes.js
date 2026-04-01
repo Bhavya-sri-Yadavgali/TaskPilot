@@ -35,6 +35,23 @@ router.post("/",auth, async (req, res) => {
 router.get("/", auth,async (req, res) => {
   try {
     const userId = req.user.userId;
+    const completedTasks = await Task.find({ user_id: userId, status: "completed" });
+
+    // 🔹 Real-time Focus Factor (overRunFactor)
+    let overRunFactor = 1.0;
+    if (completedTasks.length > 0) {
+      let totalPlanned = 0;
+      let totalActual = 0;
+
+      completedTasks.forEach(t => {
+        totalPlanned += (t.planned_duration || 0);
+        totalActual += (t.actual_duration || t.planned_duration || 0);
+      });
+
+      if (totalActual > 0) {
+        overRunFactor = totalPlanned / totalActual;
+      }
+    }
 
     let progressData = await Progress.find({ user_id: userId })
       .populate("skill_id");
@@ -48,6 +65,7 @@ router.get("/", auth,async (req, res) => {
         totalTasks: 0,
         mostPracticed: "None",
         dailyAverage: 0,
+        overRunFactor, // 🔥 Added Focus Factor even if no skills
         weeklyData: [],
         skills: []
       });
@@ -122,30 +140,12 @@ router.get("/", auth,async (req, res) => {
     // 🔹 Daily Average
     const dailyAverage = (totalStudyTime / 7).toFixed(1);
 
-    // 🔹 Real-time Focus Factor (overRunFactor)
-    const completedTasks = await Task.find({ user_id: userId, status: "completed" });
-    let overRunFactor = 1.0;
-
-    if (completedTasks.length > 0) {
-      let totalPlanned = 0;
-      let totalActual = 0;
-
-      completedTasks.forEach(t => {
-        totalPlanned += (t.planned_duration || 0);
-        totalActual += (t.actual_duration || t.planned_duration || 0); // fallback to planned if actual is missing
-      });
-
-      if (totalActual > 0) {
-        overRunFactor = totalPlanned / totalActual;
-      }
-    }
-
     res.json({
       totalStudyTime,
       totalTasks,
       mostPracticed,
       dailyAverage,
-      overRunFactor, // 🔥 Added Focus Factor
+      overRunFactor, 
       weeklyData,
       skills
     });

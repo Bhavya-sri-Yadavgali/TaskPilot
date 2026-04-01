@@ -60,7 +60,7 @@ export default function TodoList() {
 
   const handleArchive = async (id) => {
     try {
-      const payload = { status: "Archived", completedAt: new Date() };
+      const payload = { status: "Archived", completedAt: new Date().toISOString() };
       
       setTodos(todos.map(t => t._id === id ? { ...t, ...payload } : t));
       await API.put(`/todos/${id}`, payload);

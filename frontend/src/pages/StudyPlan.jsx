@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { format, addDays, startOfWeek, isSameDay, parseISO, startOfDay, isBefore } from "date-fns";
+import { format, addDays, startOfWeek, isSameDay, parseISO, startOfDay, isBefore, isAfter } from "date-fns";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { 
@@ -38,6 +38,9 @@ export default function StudyPlan() {
   
   const [error, setError] = useState(null);
   const dateInputRef = useRef(null);
+  const timetableRef = useRef(null);
+  const [hoverTime, setHoverTime] = useState(null);
+  const [mousePos, setMousePos] = useState({ x: 0 });
 
   // Form State
   const [newTask, setNewTask] = useState({
@@ -86,6 +89,7 @@ export default function StudyPlan() {
   const today = startOfDay(new Date());
   const selectedDayStart = startOfDay(selectedDate);
   const isPastDay = isBefore(selectedDayStart, today);
+  const isFutureDay = isAfter(selectedDayStart, today);
 
   // Derived unique tasks for "Existing Task" dropdown (templates)
   const uniqueTaskTemplates = [];
@@ -234,7 +238,7 @@ export default function StudyPlan() {
   };
 
   const toggleStatus = async (task) => {
-    if (isPastDay || task.status === "completed") return;
+    if (isPastDay || isFutureDay || task.status === "completed") return;
     
     // 🔥 Instead of immediate toggle, open completion modal
     setCompletingTask(task);
@@ -273,6 +277,58 @@ export default function StudyPlan() {
     if (h > 0 && m > 0) return `${h}h ${m}m`;
     if (h > 0) return `${h}h`;
     return `${m}m`;
+  };
+
+  const getTimeFromOffset = (e) => {
+    if (!timetableRef.current) return null;
+    const rect = timetableRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const scrollLeft = timetableRef.current.scrollLeft;
+    const relativeX = x + scrollLeft;
+    const totalWidth = timetableRef.current.scrollWidth;
+    
+    const percent = relativeX / totalWidth;
+    const totalMinutes = percent * 24 * 60;
+    
+    // Round to nearest 15 mins for better UX
+    const roundedMins = Math.floor(totalMinutes / 15) * 15;
+    const hours = Math.floor(roundedMins / 60);
+    const mins = roundedMins % 60;
+    
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  };
+
+  const handleTimetableMouseMove = (e) => {
+    const time = getTimeFromOffset(e);
+    setHoverTime(time);
+    
+    const rect = timetableRef.current.getBoundingClientRect();
+    setMousePos({ x: e.clientX - rect.left });
+  };
+
+  const handleTimetableClick = (e) => {
+    if (isPastDay) return;
+    const startTime = getTimeFromOffset(e);
+    if (!startTime) return;
+
+    // Default 1 hour duration
+    const startMins = parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]);
+    let endMins = startMins + 60;
+    if (endMins >= 24 * 60) endMins = 24 * 60 - 1;
+    const endTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
+
+    setIsAddingTask(true);
+    setIsEditingTask(null);
+    setNewTask({
+      title: "",
+      skill_id: "",
+      start_time: startTime,
+      end_time: endTime,
+      useExisting: false,
+      existingTaskId: ""
+    });
+    setFormError("");
+    window.scrollTo({ top: 500, behavior: 'smooth' });
   };
 
   if (error) return <p className="p-6 text-red-500 font-bold">{error}</p>;
@@ -406,14 +462,32 @@ export default function StudyPlan() {
                <Clock size={16} className="text-purple-500" /> Daily Timetable Visualization
              </h2>
              
-             <div className="overflow-x-auto pb-4">
-               <div className="relative w-full min-w-[600px] h-12 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 mt-6">
+             <div className="overflow-x-auto pb-4 relative group/container">
+               <div 
+                 ref={timetableRef}
+                 onMouseMove={handleTimetableMouseMove}
+                 onMouseLeave={() => setHoverTime(null)}
+                 onClick={handleTimetableClick}
+                 className="relative w-full min-w-[600px] h-14 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 mt-6 cursor-crosshair transition-all hover:border-blue-300"
+               >
                 {/* 24 Hour Grid Lines */}
                 {Array.from({length: 24}).map((_, i) => (
-                  <div key={i} className="absolute top-0 bottom-0 border-l border-slate-200" style={{ left: `${(i / 24) * 100}%` }}>
+                  <div key={i} className="absolute top-0 bottom-0 border-l border-slate-200/60" style={{ left: `${(i / 24) * 100}%` }}>
                      <span className="absolute -top-5 -translate-x-1/2 text-[9px] font-bold text-slate-400">{i}:00</span>
                   </div>
                 ))}
+
+                {/* Hover Indicator Line */}
+                {hoverTime && !isPastDay && (
+                  <div 
+                    className="absolute top-0 bottom-0 w-px bg-blue-400 z-20 pointer-events-none"
+                    style={{ left: `${mousePos.x}px` }}
+                  >
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">
+                      {hoverTime}
+                    </div>
+                  </div>
+                )}
                 
                 {/* Render task blocks */}
                 {selectedTasks.map(task => {
@@ -426,15 +500,34 @@ export default function StudyPlan() {
                   return (
                     <div 
                       key={task._id} 
-                      className="absolute top-0 bottom-0 bg-blue-500/80 border-l-2 border-blue-600 hover:bg-blue-600 transition-colors group cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit(task);
+                      }}
+                      className="absolute top-0 bottom-0 bg-gradient-to-br from-blue-500/90 to-indigo-600/90 border-l-2 border-white/30 hover:from-blue-600 hover:to-indigo-700 transition-all group/task cursor-pointer z-10 shadow-sm"
                       style={{ left: `${startPercent}%`, width: `${width}%` }}
                     >
-                       <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10 transition-opacity">
-                         {task.title} ({task.start_time} - {task.end_time})
+                       {/* Task Hover Tooltip */}
+                       <div className="opacity-0 group-hover/task:opacity-100 absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 text-white text-[10px] px-3 py-1.5 rounded-lg whitespace-nowrap z-30 transition-all pointer-events-none shadow-xl flex flex-col items-center">
+                         <span className="font-bold text-blue-400">{task.title}</span>
+                         <span className="font-medium text-slate-300 text-[9px] uppercase tracking-wider">{task.start_time} - {task.end_time}</span>
+                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900"></div>
                        </div>
+
+                       {/* Progress line inside block */}
+                       {task.status === 'completed' && (
+                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></div>
+                       )}
                     </div>
                   );
                 })}
+               </div>
+               
+               <div className="mt-8 flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">
+                 <span>Morning</span>
+                 <span>Afternoon</span>
+                 <span>Evening</span>
+                 <span>Night</span>
                </div>
              </div>
           </CardContent>
@@ -610,17 +703,19 @@ export default function StudyPlan() {
                         {/* Status Toggle Button */}
                         <button 
                           onClick={() => toggleStatus(task)}
-                          disabled={isPastDay || isCompleted}
+                          disabled={isPastDay || isFutureDay || isCompleted}
                           className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] md:text-xs font-bold border transition-all ${
                             isCompleted 
-                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100 opacity-90'
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100 opacity-90'
                               : isMissed
                                 ? 'bg-red-50 text-red-500 border-red-100 hover:bg-red-100'
-                                : 'bg-blue-50/50 text-blue-500 border-blue-200 hover:bg-blue-50'
-                          } ${(isPastDay || isCompleted) ? 'cursor-not-allowed' : ''}`}
+                                : isFutureDay
+                                  ? 'bg-slate-50 text-slate-400 border-slate-100'
+                                  : 'bg-blue-50/50 text-blue-500 border-blue-200 hover:bg-blue-50'
+                          } ${(isPastDay || isFutureDay || isCompleted) ? 'cursor-not-allowed' : ''}`}
                         >
                           {isCompleted ? <CheckCircle2 size={14} /> : isMissed ? <XCircle size={14} /> : <Circle size={14} />}
-                          {isCompleted ? "Completed" : isMissed ? "Missed" : "Planned"}
+                          {isCompleted ? "Completed" : isMissed ? "Missed" : isFutureDay ? "Future" : "Planned"}
                         </button>
                         
                         {!isPastDay && !isCompleted && (

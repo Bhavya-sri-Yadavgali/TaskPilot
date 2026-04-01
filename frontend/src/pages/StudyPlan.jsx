@@ -282,12 +282,10 @@ export default function StudyPlan() {
   const getTimeFromOffset = (e) => {
     if (!timetableRef.current) return null;
     const rect = timetableRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const scrollLeft = timetableRef.current.scrollLeft;
-    const relativeX = x + scrollLeft;
-    const totalWidth = timetableRef.current.scrollWidth;
+    const x = e.clientX - rect.left; // This is already the relative offset within the 24h bar
     
-    const percent = relativeX / totalWidth;
+    const totalWidth = rect.width;
+    const percent = Math.max(0, Math.min(1, x / totalWidth));
     const totalMinutes = percent * 24 * 60;
     
     // Round to nearest 15 mins for better UX
@@ -462,28 +460,28 @@ export default function StudyPlan() {
                <Clock size={16} className="text-purple-500" /> Daily Timetable Visualization
              </h2>
              
-             <div className="overflow-x-auto pb-4 relative group/container">
+             <div className="overflow-x-auto pb-4 pt-10 relative group/container">
                <div 
                  ref={timetableRef}
                  onMouseMove={handleTimetableMouseMove}
                  onMouseLeave={() => setHoverTime(null)}
                  onClick={handleTimetableClick}
-                 className="relative w-full min-w-[600px] h-14 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 mt-6 cursor-crosshair transition-all hover:border-blue-300"
+                 className="relative w-full min-w-[600px] h-14 bg-slate-100 rounded-xl border border-slate-200 cursor-crosshair transition-all hover:border-blue-300"
                >
                 {/* 24 Hour Grid Lines */}
                 {Array.from({length: 24}).map((_, i) => (
                   <div key={i} className="absolute top-0 bottom-0 border-l border-slate-200/60" style={{ left: `${(i / 24) * 100}%` }}>
-                     <span className="absolute -top-5 -translate-x-1/2 text-[9px] font-bold text-slate-400">{i}:00</span>
+                     <span className="absolute -top-7 -translate-x-1/2 text-[9px] font-bold text-slate-400">{i}:00</span>
                   </div>
                 ))}
 
                 {/* Hover Indicator Line */}
                 {hoverTime && !isPastDay && (
                   <div 
-                    className="absolute top-0 bottom-0 w-px bg-blue-400 z-20 pointer-events-none"
+                    className="absolute top-0 bottom-0 w-px bg-blue-500 z-20 pointer-events-none"
                     style={{ left: `${mousePos.x}px` }}
                   >
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-black px-2.5 py-1 rounded shadow-lg whitespace-nowrap z-30">
                       {hoverTime}
                     </div>
                   </div>
@@ -504,19 +502,19 @@ export default function StudyPlan() {
                         e.stopPropagation();
                         handleEdit(task);
                       }}
-                      className="absolute top-0 bottom-0 bg-gradient-to-br from-blue-500/90 to-indigo-600/90 border-l-2 border-white/30 hover:from-blue-600 hover:to-indigo-700 transition-all group/task cursor-pointer z-10 shadow-sm"
+                      className="absolute top-0 bottom-0 bg-gradient-to-br from-blue-500 to-indigo-600 border-l-2 border-white/20 hover:from-blue-600 hover:to-indigo-700 transition-all group cursor-pointer z-10 shadow-sm first:rounded-l-xl last:rounded-r-xl"
                       style={{ left: `${startPercent}%`, width: `${width}%` }}
                     >
                        {/* Task Hover Tooltip */}
-                       <div className="opacity-0 group-hover/task:opacity-100 absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 text-white text-[10px] px-3 py-1.5 rounded-lg whitespace-nowrap z-30 transition-all pointer-events-none shadow-xl flex flex-col items-center">
-                         <span className="font-bold text-blue-400">{task.title}</span>
-                         <span className="font-medium text-slate-300 text-[9px] uppercase tracking-wider">{task.start_time} - {task.end_time}</span>
+                       <div className="opacity-0 group-hover:opacity-100 absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-700 text-white text-[10px] px-3 py-2 rounded-xl whitespace-nowrap z-50 transition-all pointer-events-none shadow-2xl flex flex-col items-center">
+                         <span className="font-extrabold text-blue-400">{task.title}</span>
+                         <span className="font-bold text-slate-300 text-[9px] uppercase tracking-widest">{task.start_time} - {task.end_time}</span>
                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900"></div>
                        </div>
 
                        {/* Progress line inside block */}
                        {task.status === 'completed' && (
-                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"></div>
+                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></div>
                        )}
                     </div>
                   );

@@ -87,10 +87,8 @@ const userSchema = new mongoose.Schema({
   },
   isVerified: {
     type: Boolean,
-    default: false
-  },
-  verificationToken: String,
-  verificationExpires: Date
+    default: true
+  }
 
 }, { timestamps: true }) // handles createdAt automatically
 

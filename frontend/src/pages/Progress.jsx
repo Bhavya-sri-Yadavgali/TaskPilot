@@ -36,6 +36,17 @@ const CATEGORY_COLORS = {
   "Other": "#94a3b8"        
 };
 
+const CUSTOM_PALETTE = [
+  "#f59e0b", // Amber
+  "#8b5cf6", // Violet
+  "#ec4899", // Pink
+  "#f97316", // Orange
+  "#14b8a6", // Teal
+  "#6366f1", // Indigo
+  "#84cc16", // Lime
+  "#eab308"  // Yellow
+];
+
 export default function Progress() {
   const [tasks, setTasks] = useState([]);
   const [skills, setSkills] = useState([]);
@@ -195,10 +206,10 @@ export default function Progress() {
       hours: weekDayMins[day] / 60
     }));
 
-    const weekCategoryData = Object.keys(catMap).map(key => ({
+    const weekCategoryData = Object.keys(catMap).map((key, index) => ({
       name: key,
       value: catMap[key],
-      fill: CATEGORY_COLORS[key] || CATEGORY_COLORS["Other"]
+      fill: CATEGORY_COLORS[key] || CUSTOM_PALETTE[index % CUSTOM_PALETTE.length]
     })).sort((a,b) => b.value - a.value);
 
     const weekSkillData = Object.keys(weekSkillMins).map(name => {
@@ -400,6 +411,7 @@ export default function Progress() {
                 <Tooltip 
                   cursor={{ fill: '#F8FAFC' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                  formatter={(value) => [`${parseFloat(value).toFixed(2)}h`, "Hours"]}
                 />
                 <Bar 
                   dataKey="hours" 
@@ -477,7 +489,11 @@ export default function Progress() {
             <div className="relative h-[220px] flex justify-center items-center mb-6">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <RechartsTooltip cursor={{fill: 'transparent'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
+                  <RechartsTooltip 
+                    cursor={{fill: 'transparent'}} 
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} 
+                    formatter={(value) => [`${parseFloat(value).toFixed(2)}h`, "Hours"]}
+                  />
                   <Pie
                     data={weekCategoryData}
                     innerRadius={65}
